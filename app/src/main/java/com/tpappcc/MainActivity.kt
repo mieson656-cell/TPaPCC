@@ -146,6 +146,48 @@ class MainActivity : Activity() {
         permissions.addView(text("Каждая возможность включается отдельно и только с согласия владельца телефона.", 13f, Color.rgb(169,173,186)))
         root.addView(permissions)
 
+        addSpace(root, 16)
+        val capabilities = card()
+        capabilities.addView(text("Возможности устройства", 18f, Color.WHITE, true))
+        addSpace(capabilities, 6)
+        capabilities.addView(text("Функции разделены по уровню доступа. Никаких скрытых действий.", 13f, Color.rgb(169,173,186)))
+
+        addSpace(capabilities, 14)
+        capabilities.addView(text("БЕЗ ROOT / SHIZUKU", 13f, Color.rgb(124,92,252), true))
+        addSpace(capabilities, 6)
+        capabilities.addView(text(
+            "✓ Трансляция экрана\n" +
+            "✓ Снимок экрана\n" +
+            "✓ Запись экрана\n" +
+            "✓ Микрофон — только с системным разрешением\n" +
+            "✓ Аудио воспроизведения — где поддерживается Android\n" +
+            "✓ Выбор файлов и папок через системный файловый picker\n" +
+            "✓ Фото и видео через системные API\n" +
+            "✓ Отправка уведомлений, если разрешено системой\n" +
+            "✓ Изменение громкости\n" +
+            "✓ Яркость экрана в разрешённых Android пределах\n" +
+            "✓ Ограниченное управление интерфейсом через Accessibility\n" +
+            "✓ Запуск выбранных действий/приложений через Android Intent\n" +
+            "✓ Просмотр состояния батареи, сети и экрана",
+            14f, Color.rgb(225,227,235)
+        ))
+
+        addSpace(capabilities, 16)
+        capabilities.addView(text("ROOT / РАСШИРЕННЫЙ РЕЖИМ", 13f, Color.rgb(255,173,74), true))
+        addSpace(capabilities, 6)
+        capabilities.addView(text(
+            "⚠ Требует отдельного явного разрешения владельца устройства.\n\n" +
+            "• Расширенный доступ к файловой системе\n" +
+            "• Системные настройки, недоступные обычному приложению\n" +
+            "• Расширенное управление пакетами/приложениями\n" +
+            "• Расширенное управление системными службами\n" +
+            "• Дополнительные shell-команды устройства\n" +
+            "• Расширенные сетевые и системные настройки\n\n" +
+            "TPaPCC не будет выполнять скрытые команды, обходить подтверждения или получать доступ к данным без согласия владельца.",
+            14f, Color.rgb(225,227,235)
+        ))
+        root.addView(capabilities)
+
         scroll.addView(root)
         setContentView(scroll)
     }
