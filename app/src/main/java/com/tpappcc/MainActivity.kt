@@ -50,8 +50,7 @@ class MainActivity : Activity() {
             setBackgroundColor(Color.rgb(11, 13, 18))
         }
 
-        val brand = text("TPaPCC", 32f, Color.WHITE, true)
-        root.addView(brand)
+        root.addView(text("TPaPCC", 32f, Color.WHITE, true))
         root.addView(text("Trusted Phone and PC Connect", 14f, Color.rgb(169,173,186)))
         addSpace(root, 22)
 
@@ -99,13 +98,16 @@ class MainActivity : Activity() {
 
         addSpace(root, 16)
         val session = card()
-        session.addView(text("Сессия", 18f, Color.WHITE, true))
+        session.addView(text("Длительность сессии", 18f, Color.WHITE, true))
         addSpace(session, 6)
-        session.addView(text("Друг сам выбирает длительность доступа.", 14f, Color.rgb(169,173,186)))
+        session.addView(text("Друг выбирает, как долго действует доступ. Его можно завершить раньше.", 14f, Color.rgb(169,173,186)))
         addSpace(session, 12)
 
         duration = Spinner(this)
-        val options = arrayOf("15 минут", "30 минут", "1 час", "2 часа", "3 часа")
+        val options = arrayOf(
+            "15 минут", "30 минут", "1 час", "2 часа", "3 часа",
+            "6 часов", "12 часов", "24 часа"
+        )
         duration.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, options)
         session.addView(duration, LinearLayout.LayoutParams(-1, dp(52)))
         addSpace(session, 10)
@@ -149,7 +151,7 @@ class MainActivity : Activity() {
     }
 
     private fun startSession(index: Int) {
-        val minutes = intArrayOf(15, 30, 60, 120, 180)[index]
+        val minutes = intArrayOf(15, 30, 60, 120, 180, 360, 720, 1440)[index]
         timer?.cancel()
         status.text = "●  Сессия активна"
         timerView.text = "%02d:%02d:00".format(minutes / 60, minutes % 60)
