@@ -1,218 +1,57 @@
 package com.tpappcc
 
-import android.app.Activity
-import android.os.Bundle
-import android.os.CountDownTimer
-import android.graphics.Color
-import android.graphics.Typeface
+import android.Manifest
+import android.app.*
+import android.content.*
+import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionManager
+import android.net.Uri
+import android.os.*
+import android.provider.Settings
 import android.view.Gravity
 import android.widget.*
+import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 
-class MainActivity : Activity() {
-    private var timer: CountDownTimer? = null
-    private lateinit var status: TextView
-    private lateinit var timerView: TextView
-    private lateinit var duration: Spinner
-
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        showHome()
-    }
-
-    private fun card(): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(20), dp(18), dp(20), dp(18))
-        background = GradientDrawable().apply {
-            setColor(Color.rgb(21, 25, 34))
-            cornerRadius = dp(22).toFloat()
-        }
-    }
-
-    private fun text(value: String, size: Float, color: Int = Color.WHITE, bold: Boolean = false) =
-        TextView(this).apply {
-            this.text = value
-            textSize = size
-            setTextColor(color)
-            if (bold) typeface = Typeface.DEFAULT_BOLD
-        }
-
-    private fun addSpace(parent: LinearLayout, h: Int) =
-        parent.addView(Space(this), LinearLayout.LayoutParams(1, dp(h)))
-
-    private fun showHome() {
-        val scroll = ScrollView(this)
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(28), dp(22), dp(28))
-            setBackgroundColor(Color.rgb(11, 13, 18))
-        }
-
-        root.addView(text("TPaPCC", 32f, Color.WHITE, true))
-        root.addView(text("Trusted Phone and PC Connect", 14f, Color.rgb(169,173,186)))
-        addSpace(root, 22)
-
-        val hero = card()
-        hero.addView(text("Доверенное подключение", 21f, Color.WHITE, true))
-        addSpace(hero, 7)
-        hero.addView(text("Подключайся к телефону друга только после его подтверждения.", 14f, Color.rgb(169,173,186)))
-        addSpace(hero, 18)
-        status = text("●  Сессия не активна", 15f, Color.rgb(169,173,186), true)
-        hero.addView(status)
-        root.addView(hero, LinearLayout.LayoutParams(-1, -2))
-
-        addSpace(root, 16)
-        val pairing = card()
-        pairing.addView(text("Сопряжение", 18f, Color.WHITE, true))
-        addSpace(pairing, 10)
-        val code = EditText(this).apply {
-            hint = "Введите 6-значный код"
-            inputType = 2
-            textSize = 16f
-            setSingleLine()
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.rgb(120,125,138))
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(29,34,48)); cornerRadius = dp(14).toFloat()
-            }
-            setPadding(dp(16), 0, dp(16), 0)
-        }
-        pairing.addView(code, LinearLayout.LayoutParams(-1, dp(54)))
-        addSpace(pairing, 10)
-        val pair = Button(this).apply {
-            text = "Подключиться"
-            setTextColor(Color.WHITE)
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(124,92,252)); cornerRadius = dp(14).toFloat()
-            }
-            setOnClickListener {
-                status.text = if (code.text.toString().length == 6)
-                    "●  Ожидаем подтверждение друга"
-                else "Введите ровно 6 цифр"
-            }
-        }
-        pairing.addView(pair, LinearLayout.LayoutParams(-1, dp(52)))
-        root.addView(pairing)
-
-        addSpace(root, 16)
-        val session = card()
-        session.addView(text("Длительность сессии", 18f, Color.WHITE, true))
-        addSpace(session, 6)
-        session.addView(text("Друг выбирает, как долго действует доступ. Его можно завершить раньше.", 14f, Color.rgb(169,173,186)))
-        addSpace(session, 12)
-
-        duration = Spinner(this)
-        val options = arrayOf(
-            "15 минут", "30 минут", "1 час", "2 часа", "3 часа",
-            "6 часов", "12 часов", "24 часа"
-        )
-        duration.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, options)
-        session.addView(duration, LinearLayout.LayoutParams(-1, dp(52)))
-        addSpace(session, 10)
-
-        timerView = text("", 22f, Color.WHITE, true).apply { gravity = Gravity.CENTER }
-        session.addView(timerView, LinearLayout.LayoutParams(-1, dp(48)))
-
-        val start = Button(this).apply {
-            text = "Запустить сессию"
-            setTextColor(Color.WHITE)
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(67,209,122)); cornerRadius = dp(14).toFloat()
-            }
-            setOnClickListener { startSession(duration.selectedItemPosition) }
-        }
-        session.addView(start, LinearLayout.LayoutParams(-1, dp(52)))
-        addSpace(session, 8)
-
-        val stop = Button(this).apply {
-            text = "Завершить доступ"
-            setTextColor(Color.WHITE)
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(255,95,109)); cornerRadius = dp(14).toFloat()
-            }
-            setOnClickListener { stopSession() }
-        }
-        session.addView(stop, LinearLayout.LayoutParams(-1, dp(52)))
-        root.addView(session)
-
-        addSpace(root, 16)
-        val permissions = card()
-        permissions.addView(text("Разрешения", 18f, Color.WHITE, true))
-        addSpace(permissions, 8)
-        permissions.addView(text("Экран  •  Микрофон  •  Файлы  •  Уведомления  •  Управление", 14f, Color.rgb(169,173,186)))
-        addSpace(permissions, 8)
-        permissions.addView(text("Каждая возможность включается отдельно и только с согласия владельца телефона.", 13f, Color.rgb(169,173,186)))
-        root.addView(permissions)
-
-        addSpace(root, 16)
-        val capabilities = card()
-        capabilities.addView(text("Возможности устройства", 18f, Color.WHITE, true))
-        addSpace(capabilities, 6)
-        capabilities.addView(text("Функции разделены по уровню доступа. Никаких скрытых действий.", 13f, Color.rgb(169,173,186)))
-
-        addSpace(capabilities, 14)
-        capabilities.addView(text("БЕЗ ROOT / SHIZUKU", 13f, Color.rgb(124,92,252), true))
-        addSpace(capabilities, 6)
-        capabilities.addView(text(
-            "✓ Трансляция экрана\n" +
-            "✓ Снимок экрана\n" +
-            "✓ Запись экрана\n" +
-            "✓ Микрофон — только с системным разрешением\n" +
-            "✓ Аудио воспроизведения — где поддерживается Android\n" +
-            "✓ Выбор файлов и папок через системный файловый picker\n" +
-            "✓ Фото и видео через системные API\n" +
-            "✓ Отправка уведомлений, если разрешено системой\n" +
-            "✓ Изменение громкости\n" +
-            "✓ Яркость экрана в разрешённых Android пределах\n" +
-            "✓ Ограниченное управление интерфейсом через Accessibility\n" +
-            "✓ Запуск выбранных действий/приложений через Android Intent\n" +
-            "✓ Просмотр состояния батареи, сети и экрана",
-            14f, Color.rgb(225,227,235)
-        ))
-
-        addSpace(capabilities, 16)
-        capabilities.addView(text("ROOT / РАСШИРЕННЫЙ РЕЖИМ", 13f, Color.rgb(255,173,74), true))
-        addSpace(capabilities, 6)
-        capabilities.addView(text(
-            "⚠ Требует отдельного явного разрешения владельца устройства.\n\n" +
-            "• Расширенный доступ к файловой системе\n" +
-            "• Системные настройки, недоступные обычному приложению\n" +
-            "• Расширенное управление пакетами/приложениями\n" +
-            "• Расширенное управление системными службами\n" +
-            "• Дополнительные shell-команды устройства\n" +
-            "• Расширенные сетевые и системные настройки\n\n" +
-            "TPaPCC не будет выполнять скрытые команды, обходить подтверждения или получать доступ к данным без согласия владельца.",
-            14f, Color.rgb(225,227,235)
-        ))
-        root.addView(capabilities)
-
-        scroll.addView(root)
-        setContentView(scroll)
-    }
-
-    private fun startSession(index: Int) {
-        val minutes = intArrayOf(15, 30, 60, 120, 180, 360, 720, 1440)[index]
-        timer?.cancel()
-        status.text = "●  Сессия активна"
-        timerView.text = "%02d:%02d:00".format(minutes / 60, minutes % 60)
-        timer = object : CountDownTimer(minutes * 60_000L, 1000L) {
-            override fun onTick(ms: Long) {
-                timerView.text = "%02d:%02d:%02d".format(
-                    ms / 3600000, (ms / 60000) % 60, (ms / 1000) % 60
-                )
-            }
-            override fun onFinish() {
-                timerView.text = "00:00:00"
-                status.text = "●  Сессия завершена"
-            }
-        }.start()
-    }
-
-    private fun stopSession() {
-        timer?.cancel()
-        timerView.text = ""
-        status.text = "●  Доступ остановлен"
-    }
+class MainActivity:Activity(){
+ private var timer:CountDownTimer?=null
+ private lateinit var status:TextView
+ private lateinit var timerView:TextView
+ private lateinit var duration:Spinner
+ private fun dp(v:Int)=(v*resources.displayMetrics.density).toInt()
+ private fun t(v:String,s:Float,c:Int=Color.WHITE,b:Boolean=false)=TextView(this).apply{text=v;textSize=s;setTextColor(c);if(b)typeface=Typeface.DEFAULT_BOLD}
+ private fun space(p:LinearLayout,h:Int)=p.addView(Space(this),LinearLayout.LayoutParams(1,dp(h)))
+ private fun card()=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(20),dp(18),dp(20),dp(18));background=GradientDrawable().apply{setColor(Color.rgb(21,25,34));cornerRadius=dp(22).toFloat()}}
+ private fun btn(v:String,click:()->Unit)=Button(this).apply{text=v;setTextColor(Color.WHITE);background=GradientDrawable().apply{setColor(Color.rgb(124,92,252));cornerRadius=dp(14).toFloat()};setOnClickListener{click()}}
+ override fun onCreate(b:Bundle?){super.onCreate(b);createChannel();showHome()}
+ private fun createChannel(){if(Build.VERSION.SDK_INT>=26){val c=NotificationChannel("tpaPcc","TPaPCC","TPaPCC services");getSystemService(NotificationManager::class.java).createNotificationChannel(c)}}
+ private fun showHome(){
+  val scroll=ScrollView(this);val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(22),dp(28),dp(22),dp(28));setBackgroundColor(Color.rgb(11,13,18))}
+  root.addView(t("TPaPCC",32f,Color.WHITE,true));root.addView(t("Trusted Phone and PC Connect",14f,Color.rgb(169,173,186)));space(root,20)
+  val hero=card();hero.addView(t("Доверенное подключение",21f,Color.WHITE,true));space(hero,7);hero.addView(t("Все действия видимы владельцу телефона. Доступ можно остановить в любой момент.",14f,Color.rgb(169,173,186)));space(hero,15);status=t("● Сессия не активна",15f,Color.rgb(169,173,186),true);hero.addView(status);root.addView(hero);space(root,15)
+  val pair=card();pair.addView(t("Сопряжение",18f,Color.WHITE,true));space(pair,8)
+  val code=EditText(this).apply{hint="Введите 6-значный код";inputType=2;textSize=16f;setSingleLine();setTextColor(Color.WHITE);setHintTextColor(Color.rgb(120,125,138));background=GradientDrawable().apply{setColor(Color.rgb(29,34,48));cornerRadius=dp(14).toFloat()};setPadding(dp(16),0,dp(16),0)}
+  pair.addView(code,LinearLayout.LayoutParams(-1,dp(54)));space(pair,9);pair.addView(btn("Подключиться"){status.text=if(code.text.length==6)"● Ожидаем подтверждение владельца" else "Введите ровно 6 цифр"},LinearLayout.LayoutParams(-1,dp(52)));root.addView(pair);space(root,15)
+  val session=card();session.addView(t("Длительность сессии",18f,Color.WHITE,true));space(session,5);session.addView(t("Выбирается владельцем телефона.",14f,Color.rgb(169,173,186)));space(session,9)
+  duration=Spinner(this);duration.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,arrayOf("15 минут","30 минут","1 час","2 часа","3 часа","6 часов","12 часов","24 часа"));session.addView(duration,LinearLayout.LayoutParams(-1,dp(52)));space(session,7)
+  timerView=t("",22f,Color.WHITE,true).apply{gravity=Gravity.CENTER};session.addView(timerView,LinearLayout.LayoutParams(-1,dp(45)));session.addView(btn("Запустить локальную сессию"){startSession(duration.selectedItemPosition)},LinearLayout.LayoutParams(-1,dp(52)));space(session,7);session.addView(btn("Завершить доступ"){stopSession()},LinearLayout.LayoutParams(-1,dp(52)));root.addView(session);space(root,15)
+  val actions=card();actions.addView(t("Разрешения и функции",18f,Color.WHITE,true));space(actions,9)
+  actions.addView(btn("🎙 Разрешение микрофона"){requestMic()});space(actions,7)
+  actions.addView(btn("🔔 Разрешение уведомлений"){requestNotifications()});space(actions,7)
+  actions.addView(btn("📺 Запросить доступ к экрану"){requestScreen()});space(actions,7)
+  actions.addView(btn("📁 Выбрать файл"){pickFile()});space(actions,7)
+  actions.addView(btn("🖐 Открыть Accessibility"){startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))});space(actions,7)
+  actions.addView(btn("☀️ Настройки яркости"){startActivity(Intent(Settings.ACTION_DISPLAY_SETTINGS))});space(actions,7)
+  actions.addView(btn("🔊 Настройки звука"){startActivity(Intent(Settings.ACTION_SOUND_SETTINGS))});root.addView(actions);space(root,15)
+  val caps=card();caps.addView(t("Возможности",18f,Color.WHITE,true));space(caps,7);caps.addView(t("БЕЗ ROOT / SHIZUKU",13f,Color.rgb(124,92,252),true));space(caps,5);caps.addView(t("✓ экран и запись экрана\n✓ скриншоты\n✓ микрофон\n✓ системный выбор файлов\n✓ фото/видео через системные API\n✓ уведомления\n✓ громкость и доступные настройки\n✓ Accessibility-управление после включения владельцем\n✓ батарея, сеть и состояние устройства",14f,Color.rgb(225,227,235)));space(caps,12);caps.addView(t("ROOT / РАСШИРЕННЫЙ",13f,Color.rgb(255,173,74),true));space(caps,5);caps.addView(t("• расширенная файловая система\n• дополнительные системные настройки\n• расширенное управление пакетами и службами\n• shell-команды устройства\n• расширенные сетевые настройки",14f,Color.rgb(225,227,235)));space(caps,8);caps.addView(t("Root-функции будут отдельным режимом и никогда не включаются скрытно.",13f,Color.rgb(169,173,186)));root.addView(caps)
+  scroll.addView(root);setContentView(scroll)
+ }
+ private fun requestMic(){if(Build.VERSION.SDK_INT>=23)requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO),10)}
+ private fun requestNotifications(){if(Build.VERSION.SDK_INT>=33)requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS),11)else Toast.makeText(this,"На этой версии Android отдельное разрешение не требуется",Toast.LENGTH_SHORT).show()}
+ private fun requestScreen(){val m=getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager;startActivityForResult(m.createScreenCaptureIntent(),20)}
+ private fun pickFile(){startActivity(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{type="*/*";addCategory(Intent.CATEGORY_OPENABLE)})}
+ override fun onActivityResult(req:Int,res:Int,data:Intent?){super.onActivityResult(req,res,data);if(req==20&&res==RESULT_OK&&data!=null){val i=Intent(this,ScreenCaptureService::class.java).putExtra("resultCode",res).putExtra("data",data);if(Build.VERSION.SDK_INT>=26)startForegroundService(i)else startService(i);status.text="● Трансляция экрана активна"}}
+ private fun startSession(i:Int){val m=intArrayOf(15,30,60,120,180,360,720,1440)[i];timer?.cancel();status.text="● Сессия активна";timer=object:CountDownTimer(m*60000L,1000){override fun onTick(x:Long){timerView.text="%02d:%02d:%02d".format(x/3600000,(x/60000)%60,(x/1000)%60)};override fun onFinish(){timerView.text="00:00:00";status.text="● Сессия завершена"}}.start()}
+ private fun stopSession(){timer?.cancel();timerView.text="";status.text="● Доступ остановлен";stopService(Intent(this,ScreenCaptureService::class.java));stopService(Intent(this,MicrophoneService::class.java))}
 }
