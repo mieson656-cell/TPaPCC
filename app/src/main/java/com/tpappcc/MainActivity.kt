@@ -18,6 +18,8 @@ class MainActivity:Activity(){
  private val sessionHandler=Handler(Looper.getMainLooper())
  private var sessionPolling=false
  private var lastPromptSession=""
+ private var activeSessionId=""
+ private var webRtcSession:WebRtcSession?=null
  private lateinit var status:TextView
  private lateinit var timerView:TextView
  private lateinit var duration:Spinner
@@ -31,8 +33,8 @@ class MainActivity:Activity(){
  override fun onPause(){super.onPause();stopSessionPolling()}
  private fun startSessionPolling(){if(sessionPolling)return;sessionPolling=true;sessionHandler.post(sessionPoll)}
  private fun stopSessionPolling(){sessionPolling=false;sessionHandler.removeCallbacks(sessionPoll)}
- private val sessionPoll=object:Runnable{override fun run(){if(!sessionPolling)return;TpaPccApi.sessionStatus(this@MainActivity){ok,obj->if(ok&&obj!=null){val s=obj.optJSONObject("session");if(s!=null){val id=s.optString("id");val approved=!s.isNull("approved_at");if(!approved&&id.isNotBlank()&&id!=lastPromptSession){lastPromptSession=id;showApprovalDialog(id)};if(approved)status.text="● Удалённая сессия разрешена"}}};sessionHandler.postDelayed(this,2000)}}
- private fun showApprovalDialog(sessionId:String){AlertDialog.Builder(this).setTitle("Запрос на подключение").setMessage("Доверенное устройство хочет подключиться.\n\nНажми «Разрешить», только если ты действительно ожидаешь это подключение.").setNegativeButton("Отклонить"){_,_->TpaPccApi.endSession(this,sessionId){_,_->}}.setPositiveButton("Разрешить экран"){_,_->TpaPccApi.approveSession(this,sessionId){ok,_->if(ok)requestScreen()else status.text="● Не удалось разрешить сессию"}}.setCancelable(false).show()}
+ private val sessionPoll=object:Runnable{override fun run(){if(!sessionPolling)return;TpaPccApi.sessionStatus(this@MainActivity){ok,obj->if(ok&&obj!=null){val s=obj.optJSONObject("session");if(s!=null){val id=s.optString("id");val approved=!s.isNull("approved_at");if(!approved&&id.isNotBlank()&&id!=lastPromptSession){lastPromptSession=id;showApprovalDialog(id)};if(approved){activeSessionId=id;status.text="● Удалённая сессия разрешена"}}}};sessionHandler.postDelayed(this,2000)}}
+ private fun showApprovalDialog(sessionId:String){AlertDialog.Builder(this).setTitle("Запрос на подключение").setMessage("Доверенное устройство хочет подключиться.\n\nНажми «Разрешить», только если ты действительно ожидаешь это подключение.").setNegativeButton("Отклонить"){_,_->TpaPccApi.endSession(this,sessionId){_,_->}}.setPositiveButton("Разрешить экран"){_,_->activeSessionId=sessionId;TpaPccApi.approveSession(this,sessionId){ok,_->if(ok)requestScreen()else status.text="● Не удалось разрешить сессию"}}.setCancelable(false).show()}
  private fun createChannel(){if(Build.VERSION.SDK_INT>=26){val c=NotificationChannel("tpaPcc","TPaPCC services",NotificationManager.IMPORTANCE_LOW);getSystemService(NotificationManager::class.java).createNotificationChannel(c)}}
  private fun showHome(){
   val scroll=ScrollView(this);val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(22),dp(28),dp(22),dp(28));setBackgroundColor(Color.rgb(11,13,18))}
@@ -58,5 +60,5 @@ class MainActivity:Activity(){
  private fun pickFile(){startActivity(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{type="*/*";addCategory(Intent.CATEGORY_OPENABLE)})}
  override fun onActivityResult(req:Int,res:Int,data:Intent?){super.onActivityResult(req,res,data);if(req==20&&res==RESULT_OK&&data!=null){val i=Intent(this,ScreenCaptureService::class.java).putExtra("resultCode",res).putExtra("data",data);if(Build.VERSION.SDK_INT>=26)startForegroundService(i)else startService(i);status.text="● Трансляция экрана активна"}}
  private fun startSession(i:Int){val m=intArrayOf(15,30,60,120,180,360,720,1440)[i];timer?.cancel();status.text="● Сессия активна";timer=object:CountDownTimer(m*60000L,1000){override fun onTick(x:Long){timerView.text="%02d:%02d:%02d".format(x/3600000,(x/60000)%60,(x/1000)%60)};override fun onFinish(){timerView.text="00:00:00";status.text="● Сессия завершена"}}.start()}
- private fun stopSession(){timer?.cancel();timerView.text="";status.text="● Доступ остановлен";stopService(Intent(this,ScreenCaptureService::class.java));stopService(Intent(this,MicrophoneService::class.java))}
+ private fun stopSession(){timer?.cancel();timerView.text="";webRtcSession?.stop();webRtcSession=null;if(activeSessionId.isNotBlank()){val id=activeSessionId;activeSessionId="";TpaPccApi.endSession(this,id){_,_->}};status.text="● Доступ остановлен";stopService(Intent(this,ScreenCaptureService::class.java));stopService(Intent(this,MicrophoneService::class.java))}
 }
