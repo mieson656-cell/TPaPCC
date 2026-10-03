@@ -42,6 +42,9 @@ object TpaPccApi {
     fun startSession(context: Context, remoteDeviceId: String, durationMinutes: Int, permissions: List<String>, callback: (Boolean, String?) -> Unit) =
         post(context, "start_session", JSONObject().put("device_b", remoteDeviceId).put("duration_minutes", durationMinutes).put("permissions", JSONArray(permissions)), callback)
 
+    fun approveSession(context: Context, sessionId: String, callback: (Boolean, String?) -> Unit) =
+        post(context, "approve_session", JSONObject().put("session_id", sessionId), callback)
+
     fun endSession(context: Context, sessionId: String, callback: (Boolean, String?) -> Unit) =
         post(context, "end_session", JSONObject().put("session_id", sessionId), callback)
 
