@@ -386,13 +386,22 @@ class MainActivity : Activity() {
             "microphone" -> requestMic()
             "screen" -> requestScreen()
             "files" -> pickFile()
-            "accessibility" -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            "accessibility" -> requestAccessibility()
             "brightness" -> startActivity(Intent(Settings.ACTION_DISPLAY_SETTINGS))
             "volume" -> startActivity(Intent(Settings.ACTION_SOUND_SETTINGS))
             "notifications" -> requestNotifications()
             "screenshot" -> requestScreen()
             else -> if (::status.isInitialized) status.text = "● Неизвестная команда"
         }
+    }
+
+    private fun requestAccessibility() {
+        AlertDialog.Builder(this)
+            .setTitle("Нужен Accessibility")
+            .setMessage("Для этой функции Android требует специальный доступ Accessibility (Специальные возможности). Без него TPaPCC не сможет выполнить команду удалённого управления. Включение выполняется только тобой вручную в системных настройках.")
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Открыть настройки") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            .show()
     }
 
     private fun stopSession() {
