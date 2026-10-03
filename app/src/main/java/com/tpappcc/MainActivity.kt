@@ -229,6 +229,8 @@ class MainActivity : Activity() {
     private fun showMain(role: String) {
         val scroll = baseScroll()
         val root = scroll.getChildAt(0) as LinearLayout
+        val isFriend = role == "Подключение к другу"
+        val isTelegramHost = role == "Хост через Telegram"
 
         val header = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         header.addView(text("TPaPCC", 32f, Color.WHITE, true))
@@ -245,79 +247,125 @@ class MainActivity : Activity() {
         hero.addView(status)
         root.addView(hero); gap(root, 14)
 
-        val pair = card()
-        pair.addView(text(if (role == "Подключение к другу") "Подключение" else "Сопряжение", 18f, Color.WHITE, true))
-        gap(pair, 8)
-        val code = EditText(this).apply {
-            hint = if (role == "Подключение к другу") "Введи 6-значный код" else "6-значный код"
-            inputType = 2
-            textSize = 16f
-            setSingleLine()
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.rgb(120, 125, 138))
-            background = rounded(fieldBg, 14)
-            setPadding(dp(16), 0, dp(16), 0)
-        }
-        pair.addView(code, LinearLayout.LayoutParams(-1, dp(54))); gap(pair, 9)
-        pair.addView(button("🔗 Подключиться") {
-            if (code.text.length != 6) { status.text = "Введите ровно 6 цифр"; return@button }
-            TpaPccApi.redeemCode(this, code.text.toString()) { ok, result ->
-                status.text = if (ok) "● Устройство сопряжено" else "● Ошибка сопряжения: ${result ?: "unknown"}"
+        if (isTelegramHost) {
+            val telegram = card()
+            telegram.addView(text("Хост через Telegram", 18f, Color.WHITE, true))
+            gap(telegram, 8)
+            telegram.addView(text("Открывает официальный Telegram-бот TPaPCC. Меню приложения здесь не используется.", 14f, muted))
+            gap(telegram, 12)
+            telegram.addView(button("🤖 Открыть Telegram-бота") { openTelegramBot() },
+                LinearLayout.LayoutParams(-1, dp(52)))
+            root.addView(telegram); gap(root, 14)
+        } else {
+            val pair = card()
+            pair.addView(text(if (isFriend) "Подключение к другу" else "Создание подключения", 18f, Color.WHITE, true))
+            gap(pair, 8)
+
+            if (isFriend) {
+                val code = EditText(this).apply {
+                    hint = "Введи 6-значный код друга"
+                    inputType = 2
+                    textSize = 16f
+                    setSingleLine()
+                    setTextColor(Color.WHITE)
+                    setHintTextColor(Color.rgb(120, 125, 138))
+                    background = rounded(fieldBg, 14)
+                    setPadding(dp(16), 0, dp(16), 0)
+                }
+                pair.addView(code, LinearLayout.LayoutParams(-1, dp(54))); gap(pair, 9)
+                pair.addView(button("🔗 Подключиться") {
+                    if (code.text.length != 6) {
+                        status.text = "Введите ровно 6 цифр"
+                        return@button
+                    }
+                    TpaPccApi.redeemCode(this, code.text.toString()) { ok, result ->
+                        status.text = if (ok) "● Устройство сопряжено" else "● Ошибка сопряжения: ${result ?: "unknown"}"
+                    }
+                }, LinearLayout.LayoutParams(-1, dp(52)))
+            } else {
+                val codeView = text("Код появится здесь", 30f, Color.WHITE, true).apply {
+                    gravity = Gravity.CENTER
+                    letterSpacing = .12f
+                    setPadding(0, dp(8), 0, dp(8))
+                }
+                pair.addView(codeView, LinearLayout.LayoutParams(-1, dp(68)))
+                gap(pair, 4)
+                val hint = text("Создай код — он останется видимым до подключения друга.", 13f, muted)
+                pair.addView(hint)
+                gap(pair, 10)
+                pair.addView(button("✨ Создать код") {
+                    TpaPccApi.createCode(this) { ok, result ->
+                        val c = try { org.json.JSONObject(result ?: "").optString("code") } catch (_: Exception) { "" }
+                        if (ok && c.isNotBlank()) {
+                            codeView.text = c
+                            hint.text = "Код активен • действует 10 минут • жди подключения друга"
+                            status.text = "● Ожидаем подключение друга"
+                            animateIn(codeView)
+                            animateIn(hint, 70)
+                        } else {
+                            status.text = "● Не удалось создать код"
+                        }
+                    }
+                }, LinearLayout.LayoutParams(-1, dp(52)))
             }
-        }, LinearLayout.LayoutParams(-1, dp(52)))
-        gap(pair, 8)
-        pair.addView(button("✨ Создать новый код") {
-            TpaPccApi.createCode(this) { ok, result ->
-                val c = try { org.json.JSONObject(result ?: "").optString("code") } catch (_: Exception) { "" }
-                status.text = if (ok && c.isNotBlank()) "● Код: $c • действует 10 минут" else "● Не удалось создать код"
+
+            root.addView(pair); gap(root, 14)
+
+            val session = card()
+            session.addView(text("Сессия", 18f, Color.WHITE, true)); gap(session, 5)
+            session.addView(text("Максимальная длительность — 24 часа.", 14f, muted)); gap(session, 9)
+            duration = Spinner(this)
+            duration.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
+                arrayOf("15 минут", "30 минут", "1 час", "2 часа", "3 часа", "6 часов", "12 часов", "24 часа"))
+            session.addView(duration, LinearLayout.LayoutParams(-1, dp(52))); gap(session, 8)
+            timerView = text("", 22f, Color.WHITE, true).apply { gravity = Gravity.CENTER }
+            session.addView(timerView, LinearLayout.LayoutParams(-1, dp(42)))
+            session.addView(button("▶ Запустить локальную сессию") { startSession(duration.selectedItemPosition) },
+                LinearLayout.LayoutParams(-1, dp(52)))
+            gap(session, 8)
+            session.addView(button("■ Завершить доступ") { stopSession() }, LinearLayout.LayoutParams(-1, dp(52)))
+            session.visibility = View.GONE
+            root.addView(session); gap(root, 14)
+
+            val actions = card()
+            actions.addView(text("Функции и разрешения", 18f, Color.WHITE, true)); gap(actions, 9)
+            val actionList = listOf(
+                "🎙 Микрофон" to { requestMic() },
+                "🔔 Уведомления" to { requestNotifications() },
+                "📺 Доступ к экрану" to { requestScreen() },
+                "📸 Скриншот / системный выбор" to { pickFile() },
+                "🖐 Accessibility" to { requestAccessibility() },
+                "☀️ Яркость" to { startActivity(Intent(Settings.ACTION_DISPLAY_SETTINGS)) },
+                "🔊 Громкость" to { startActivity(Intent(Settings.ACTION_SOUND_SETTINGS)) }
+            )
+            actionList.forEachIndexed { index, pairAction ->
+                actions.addView(button(pairAction.first, pairAction.second), LinearLayout.LayoutParams(-1, dp(50)))
+                if (index != actionList.lastIndex) gap(actions, 7)
             }
-        }, LinearLayout.LayoutParams(-1, dp(52)))
-        root.addView(pair); gap(root, 14)
+            actions.visibility = View.GONE
+            root.addView(actions); gap(root, 14)
 
-        val session = card()
-        session.addView(text("Сессия", 18f, Color.WHITE, true)); gap(session, 5)
-        session.addView(text("Максимальная длительность — 24 часа.", 14f, muted)); gap(session, 9)
-        duration = Spinner(this)
-        duration.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
-            arrayOf("15 минут", "30 минут", "1 час", "2 часа", "3 часа", "6 часов", "12 часов", "24 часа"))
-        session.addView(duration, LinearLayout.LayoutParams(-1, dp(52))); gap(session, 8)
-        timerView = text("", 22f, Color.WHITE, true).apply { gravity = Gravity.CENTER }
-        session.addView(timerView, LinearLayout.LayoutParams(-1, dp(42)))
-        session.addView(button("▶ Запустить локальную сессию") { startSession(duration.selectedItemPosition) }, LinearLayout.LayoutParams(-1, dp(52)))
-        gap(session, 8)
-        session.addView(button("■ Завершить доступ") { stopSession() }, LinearLayout.LayoutParams(-1, dp(52)))
-        root.addView(session); gap(root, 14)
+            val caps = card()
+            caps.addView(text("Возможности", 18f, Color.WHITE, true)); gap(caps, 7)
+            caps.addView(text("БЕЗ ROOT / SHIZUKU", 13f, accent, true)); gap(caps, 5)
+            caps.addView(text("✓ экран и запись экрана\\n✓ скриншоты\\n✓ микрофон\\n✓ системный выбор файлов\\n✓ уведомления\\n✓ громкость и доступные настройки\\n✓ Accessibility после включения владельцем", 14f, Color.rgb(225, 227, 235)))
+            gap(caps, 12)
+            caps.addView(text("ROOT / РАСШИРЕННЫЙ", 13f, Color.rgb(255, 173, 74), true)); gap(caps, 5)
+            caps.addView(text("• расширенная файловая система\\n• системные настройки\\n• пакеты и службы\\n• shell-команды\\n• расширенные сетевые настройки", 14f, Color.rgb(225, 227, 235)))
+            gap(caps, 8)
+            caps.addView(text("Root-функции — только отдельным явным режимом.", 13f, muted))
+            root.addView(caps)
 
-        val actions = card()
-        actions.addView(text("Функции и разрешения", 18f, Color.WHITE, true)); gap(actions, 9)
-        val actionList = listOf(
-            "🎙 Микрофон" to { requestMic() },
-            "🔔 Уведомления" to { requestNotifications() },
-            "📺 Доступ к экрану" to { requestScreen() },
-            "📸 Скриншот / системный выбор" to { pickFile() },
-            "🖐 Accessibility" to { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
-            "☀️ Яркость" to { startActivity(Intent(Settings.ACTION_DISPLAY_SETTINGS)) },
-            "🔊 Громкость" to { startActivity(Intent(Settings.ACTION_SOUND_SETTINGS)) }
-        )
-        actionList.forEachIndexed { index, pairAction ->
-            actions.addView(button(pairAction.first, pairAction.second), LinearLayout.LayoutParams(-1, dp(50)))
-            if (index != actionList.lastIndex) gap(actions, 7)
+            root.post {
+                TpaPccApi.sessionStatus(this) { ok, obj ->
+                    val approved = ok && obj?.optJSONObject("session")?.isNull("approved_at") == false
+                    if (approved) revealConnectedControls(session, actions)
+                }
+            }
         }
-        root.addView(actions); gap(root, 14)
-
-        val caps = card()
-        caps.addView(text("Возможности", 18f, Color.WHITE, true)); gap(caps, 7)
-        caps.addView(text("БЕЗ ROOT / SHIZUKU", 13f, accent, true)); gap(caps, 5)
-        caps.addView(text("✓ экран и запись экрана\n✓ скриншоты\n✓ микрофон\n✓ системный выбор файлов\n✓ уведомления\n✓ громкость и доступные настройки\n✓ Accessibility после включения владельцем", 14f, Color.rgb(225, 227, 235)))
-        gap(caps, 12)
-        caps.addView(text("ROOT / РАСШИРЕННЫЙ", 13f, Color.rgb(255, 173, 74), true)); gap(caps, 5)
-        caps.addView(text("• расширенная файловая система\n• системные настройки\n• пакеты и службы\n• shell-команды\n• расширенные сетевые настройки", 14f, Color.rgb(225, 227, 235)))
-        gap(caps, 8)
-        caps.addView(text("Root-функции — только отдельным явным режимом.", 13f, muted))
-        root.addView(caps)
 
         val footer = TextView(this).apply {
-            text = "The end / ATCC — продолжить проект в новом чате"
+            text = "TPaPCC — Trusted Phone and PC Connection"
             textSize = 12f; setTextColor(Color.rgb(105, 110, 124)); gravity = Gravity.CENTER
             setPadding(0, dp(22), 0, 0)
         }
@@ -325,10 +373,30 @@ class MainActivity : Activity() {
         setContentView(scroll)
         animateIn(header)
         animateIn(hero, 70)
-        animateIn(pair, 130)
-        animateIn(session, 190)
-        animateIn(actions, 250)
-        animateIn(caps, 310)
+        if (!isTelegramHost) animateIn(root.getChildAt(2), 130)
+    }
+
+    private fun revealConnectedControls(session: View, actions: View) {
+        if (session.visibility == View.VISIBLE && actions.visibility == View.VISIBLE) return
+        session.visibility = View.VISIBLE
+        actions.visibility = View.VISIBLE
+        session.alpha = 0f
+        session.translationY = dp(24).toFloat()
+        actions.alpha = 0f
+        actions.translationY = dp(24).toFloat()
+        session.animate().alpha(1f).translationY(0f).setDuration(420).setInterpolator(DecelerateInterpolator()).start()
+        actions.animate().alpha(1f).translationY(0f).setStartDelay(90).setDuration(420).setInterpolator(DecelerateInterpolator()).start()
+    }
+
+    private fun openTelegramBot() {
+        TpaPccApi.telegramBotUrl(this) { ok, url ->
+            if (ok && !url.isNullOrBlank()) {
+                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+            } else {
+                status.text = "● Не удалось открыть Telegram-бота"
+                Toast.makeText(this, "Бот ещё не настроен", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun showApprovalDialog(sessionId: String) {
