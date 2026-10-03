@@ -364,7 +364,7 @@ class MainActivity : Activity() {
             status.text = "● Трансляция экрана активна"
             if (activeSessionId.isNotBlank()) {
                 webRtcSession?.stop()
-                webRtcSession = WebRtcSession(this, activeSessionId) { s -> status.text = "● $s" }
+                webRtcSession = WebRtcSession(this, activeSessionId, { s -> status.text = "● $s" }, { control -> handleRemoteControl(control) })
                 webRtcSession!!.startScreen(data)
             } else {
                 val i = Intent(this, ScreenCaptureService::class.java).putExtra("resultCode", res).putExtra("data", data)
@@ -381,6 +381,20 @@ class MainActivity : Activity() {
             override fun onFinish() { timerView.text = "00:00:00"; status.text = "● Сессия завершена" }
         }.start()
     }
+    private fun handleRemoteControl(control: org.json.JSONObject) {
+        when (control.optString("command")) {
+            "microphone" -> requestMic()
+            "screen" -> requestScreen()
+            "files" -> pickFile()
+            "accessibility" -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            "brightness" -> startActivity(Intent(Settings.ACTION_DISPLAY_SETTINGS))
+            "volume" -> startActivity(Intent(Settings.ACTION_SOUND_SETTINGS))
+            "notifications" -> requestNotifications()
+            "screenshot" -> requestScreen()
+            else -> if (::status.isInitialized) status.text = "● Неизвестная команда"
+        }
+    }
+
     private fun stopSession() {
         timer?.cancel(); timerView.text = ""; webRtcSession?.stop(); webRtcSession = null
         if (activeSessionId.isNotBlank()) {
