@@ -30,26 +30,33 @@ class WebRtcSession(
         if (running) return
         running = true
         onStatus("Создание WebRTC-сессии…")
+
         PeerConnectionFactory.initialize(
             PeerConnectionFactory.InitializationOptions.builder(context).createInitializationOptions()
         )
         factory = PeerConnectionFactory.builder().createPeerConnectionFactory()
         egl = EglBase.create()
-        val servers = listOf(PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer())
-        val config = PeerConnection.RTCConfiguration(servers)
-        peer = factory!!.createPeerConnection(config, observer)
+
+        val servers = listOf(
+            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
+        )
+        peer = factory!!.createPeerConnection(PeerConnection.RTCConfiguration(servers), observer)
         if (peer == null) {
             onStatus("WebRTC: не удалось создать PeerConnection")
             stop()
             return
         }
+
         videoSource = factory!!.createVideoSource(false)
         capturer = ScreenCapturerAndroid(data, object : MediaProjection.Callback() {
-            override fun onStop() { stop() }
+            override fun onStop() {
+                stop()
+            }
         })
         surfaceHelper = SurfaceTextureHelper.create("TPaPCC-Screen", egl!!.eglBaseContext)
         capturer!!.initialize(surfaceHelper, context, videoSource!!.capturerObserver)
         capturer!!.startCapture(1280, 720, 15)
+
         videoTrack = factory!!.createVideoTrack("TPaPCC-screen", videoSource)
         peer!!.addTrack(videoTrack, listOf("TPaPCC"))
         peer!!.createOffer(sdpObserver, MediaConstraints())
@@ -59,24 +66,43 @@ class WebRtcSession(
     private val sdpObserver = object : SdpObserver {
         override fun onCreateSuccess(desc: SessionDescription) {
             peer?.setLocalDescription(this, desc)
-            val payload = JSONObject().put("type", desc.type.canonicalForm()).put("sdp", desc.description)
+            val payload = JSONObject()
+                .put("type", desc.type.canonicalForm())
+                .put("sdp", desc.description)
             TpaPccApi.sendSignal(context, sessionId, "offer", payload) { ok, _ ->
                 onStatus(if (ok) "Ожидаем ответ WebRTC…" else "Не удалось отправить offer")
             }
         }
+
         override fun onSetSuccess() {}
-        override fun onCreateFailure(error: String) { onStatus("WebRTC offer: $error") }
-        override fun onSetFailure(error: String) { onStatus("WebRTC SDP: $error") }
+        override fun onCreateFailure(error: String) {
+            onStatus("WebRTC offer: $error")
+            stop()
+        }
+        override fun onSetFailure(error: String) {
+            onStatus("WebRTC SDP: $error")
+            stop()
+        }
     }
 
     private val observer = object : PeerConnection.Observer {
         override fun onIceCandidate(c: IceCandidate) {
-            val p = JSONObject().put("sdpMid", c.sdpMid).put("sdpMLineIndex", c.sdpMLineIndex).put("candidate", c.sdp)
+            val p = JSONObject()
+                .put("sdpMid", c.sdpMid)
+                .put("sdpMLineIndex", c.sdpMLineIndex)
+                .put("candidate", c.sdp)
             TpaPccApi.sendSignal(context, sessionId, "ice", p) { _, _ -> }
         }
+
         override fun onIceConnectionChange(state: PeerConnection.IceConnectionState) {
             onStatus("WebRTC: $state")
+            if (state == PeerConnection.IceConnectionState.FAILED ||
+                state == PeerConnection.IceConnectionState.CLOSED
+            ) {
+                stop()
+            }
         }
+
         override fun onTrack(transceiver: RtpTransceiver) {}
         override fun onSignalingChange(state: PeerConnection.SignalingState) {}
         override fun onIceConnectionReceivingChange(receiving: Boolean) {}
@@ -86,12 +112,21 @@ class WebRtcSession(
         override fun onRemoveStream(stream: MediaStream) {}
         override fun onDataChannel(channel: DataChannel) {}
         override fun onRenegotiationNeeded() {}
-        override fun onConnectionChange(newState: PeerConnection.PeerConnectionState) {}
+
+        override fun onConnectionChange(newState: PeerConnection.PeerConnectionState) {
+            onStatus("WebRTC: $newState")
+            if (newState == PeerConnection.PeerConnectionState.FAILED ||
+                newState == PeerConnection.PeerConnectionState.CLOSED
+            ) {
+                stop()
+            }
+        }
     }
 
     private fun poll() {
         if (!running) return
         TpaPccApi.pollSignals(context, sessionId, lastSignalId) { ok, messages ->
+            if (!running) return@pollSignals
             if (ok && messages != null) {
                 for (i in 0 until messages.length()) {
                     val m = messages.optJSONObject(i) ?: continue
@@ -99,22 +134,50 @@ class WebRtcSession(
                     when (m.optString("message_type")) {
                         "answer" -> {
                             val p = m.optJSONObject("payload") ?: continue
-                            val type = SessionDescription.Type.fromCanonicalForm(p.optString("type", "answer"))
+                            val type = SessionDescription.Type.fromCanonicalForm(
+                                p.optString("type", "answer")
+                            )
                             val sdp = p.optString("sdp")
-                            if (sdp.isNotBlank()) {\n                                peer?.setRemoteDescription(object : SdpObserver {\n                                    override fun onSetSuccess() {\n                                        remoteDescriptionSet = true\n                                        val queued = pendingIce.toList(); pendingIce.clear()\n                                        queued.forEach { peer?.addIceCandidate(it) }\n                                    }\n                                    override fun onSetFailure(error: String) { onStatus("WebRTC remote SDP: $error") }\n                                    override fun onCreateSuccess(desc: SessionDescription) {}\n                                    override fun onCreateFailure(error: String) {}\n                                }, SessionDescription(type, sdp))\n                            }
+                            if (sdp.isNotBlank()) {
+                                peer?.setRemoteDescription(object : SdpObserver {
+                                    override fun onSetSuccess() {
+                                        remoteDescriptionSet = true
+                                        val queued = pendingIce.toList()
+                                        pendingIce.clear()
+                                        queued.forEach { peer?.addIceCandidate(it) }
+                                    }
+
+                                    override fun onSetFailure(error: String) {
+                                        onStatus("WebRTC remote SDP: $error")
+                                        stop()
+                                    }
+
+                                    override fun onCreateSuccess(desc: SessionDescription) {}
+                                    override fun onCreateFailure(error: String) {}
+                                }, SessionDescription(type, sdp))
+                            }
                         }
+
                         "ice" -> {
                             val p = m.optJSONObject("payload") ?: continue
                             val mid = if (p.isNull("sdpMid")) null else p.optString("sdpMid")
                             val idx = p.optInt("sdpMLineIndex", 0)
                             val candidate = p.optString("candidate")
-                            if (candidate.isNotBlank()) {\n                                val ice = IceCandidate(mid, idx, candidate)\n                                if (remoteDescriptionSet) peer?.addIceCandidate(ice) else pendingIce.add(ice)\n                            }
+                            if (candidate.isNotBlank()) {
+                                val ice = IceCandidate(mid, idx, candidate)
+                                if (remoteDescriptionSet) {
+                                    peer?.addIceCandidate(ice)
+                                } else {
+                                    pendingIce.add(ice)
+                                }
+                            }
                         }
+
                         "bye" -> stop()
                     }
                 }
             }
-            handler.postDelayed({ poll() }, 700)
+            if (running) handler.postDelayed({ poll() }, 700)
         }
     }
 
@@ -122,13 +185,22 @@ class WebRtcSession(
         if (!running) return
         running = false
         try { capturer?.stopCapture() } catch (_: Exception) {}
-        capturer?.dispose(); capturer = null
-        surfaceHelper?.dispose(); surfaceHelper = null
-        videoTrack?.dispose(); videoTrack = null
-        videoSource?.dispose(); videoSource = null
-        peer?.close(); peer = null
-        factory?.dispose(); factory = null
-        egl?.release(); egl = null
+        capturer?.dispose()
+        capturer = null
+        surfaceHelper?.dispose()
+        surfaceHelper = null
+        videoTrack?.dispose()
+        videoTrack = null
+        videoSource?.dispose()
+        videoSource = null
+        peer?.close()
+        peer = null
+        factory?.dispose()
+        factory = null
+        egl?.release()
+        egl = null
+        remoteDescriptionSet = false
+        pendingIce.clear()
         handler.removeCallbacksAndMessages(null)
         onStatus("WebRTC остановлен")
     }
