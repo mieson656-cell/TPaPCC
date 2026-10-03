@@ -11,7 +11,8 @@ import org.webrtc.*
 class WebRtcSession(
     private val context: Context,
     private val sessionId: String,
-    private val onStatus: (String) -> Unit
+    private val onStatus: (String) -> Unit,
+    private val onControl: (JSONObject) -> Unit = {}
 ) {
     private var factory: PeerConnectionFactory? = null
     private var peer: PeerConnection? = null
