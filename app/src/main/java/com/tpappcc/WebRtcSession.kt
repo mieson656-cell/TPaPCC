@@ -201,6 +201,7 @@ class WebRtcSession(
     fun stop() {
         if (!running) return
         running = false
+        try { TpaPccApi.sendSignal(context, sessionId, "bye", JSONObject().put("reason", "stopped")) { _, _ -> } } catch (_: Exception) {}
         try { capturer?.stopCapture() } catch (_: Exception) {}
         capturer?.dispose()
         capturer = null
