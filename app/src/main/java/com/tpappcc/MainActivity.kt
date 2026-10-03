@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.media.projection.MediaProjectionManager
 import android.os.*
 import android.provider.Settings
@@ -28,6 +30,7 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var timerView: TextView
     private lateinit var duration: Spinner
+    private var tone: ToneGenerator? = null
 
     private val bg = Color.rgb(9, 11, 16)
     private val cardBg = Color.rgb(20, 24, 34)
@@ -91,6 +94,7 @@ class MainActivity : Activity() {
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         createChannel()
+        tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 75)
         val prefs = getSharedPreferences("tpapcc_ui", MODE_PRIVATE)
         if (prefs.getBoolean("onboarded", false)) showWelcomeBack()
         else showWelcome()
@@ -134,7 +138,7 @@ class MainActivity : Activity() {
                             activePermissions = obj.optJSONArray("permissions")?.let { a ->
                                 buildSet { for (i in 0 until a.length()) add(a.optString(i)) }
                             } ?: emptySet()
-                            status.text = "● Удалённая сессия разрешена"
+                            if (::status.isInitialized) { status.text = "● Удалённая сессия разрешена"; beep(true) }
                         }
                     }
                 }
@@ -346,6 +350,7 @@ class MainActivity : Activity() {
             getSystemService(NotificationManager::class.java).createNotificationChannel(c)
         }
     }
+    private fun beep(success: Boolean) { tone?.startTone(if (success) ToneGenerator.TONE_PROP_ACK else ToneGenerator.TONE_PROP_NACK, 120) }
     private fun requestMic() { if (Build.VERSION.SDK_INT >= 23) requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 10) }
     private fun requestNotifications() {
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 11)
@@ -404,6 +409,8 @@ class MainActivity : Activity() {
             .show()
     }
 
+    override fun onDestroy() { tone?.release(); tone = null; timer?.cancel(); webRtcSession?.stop(); super.onDestroy() }
+
     private fun stopSession() {
         timer?.cancel(); timerView.text = ""; webRtcSession?.stop(); webRtcSession = null
         if (activeSessionId.isNotBlank()) {
@@ -411,6 +418,7 @@ class MainActivity : Activity() {
             TpaPccApi.endSession(this, id) { _, _ -> }
         }
         status.text = "● Доступ остановлен"
+        beep(false)
         stopService(Intent(this, ScreenCaptureService::class.java))
         stopService(Intent(this, MicrophoneService::class.java))
     }
