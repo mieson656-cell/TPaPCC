@@ -329,7 +329,7 @@ class MainActivity : Activity() {
     private fun showApprovalDialog(sessionId: String) {
         AlertDialog.Builder(this)
             .setTitle("Запрос на подключение")
-            .setMessage("Доверенное устройство хочет подключиться.\n\nРазрешай только ожидаемое подключение.")
+            .setMessage("Доверенное устройство запрашивает удалённую сессию.\n\nРазрешение открывает заявленные функции: экран, скриншоты, микрофон, файлы и системные функции. Разрешай только ожидаемое подключение.")
             .setNegativeButton("Отклонить") { _, _ -> TpaPccApi.endSession(this, sessionId) { _, _ -> } }
             .setPositiveButton("Разрешить экран") { _, _ ->
                 activeSessionId = sessionId
