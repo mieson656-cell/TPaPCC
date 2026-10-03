@@ -25,7 +25,7 @@ class MainActivity:Activity(){
  private fun card()=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(20),dp(18),dp(20),dp(18));background=GradientDrawable().apply{setColor(Color.rgb(21,25,34));cornerRadius=dp(22).toFloat()}}
  private fun btn(v:String,click:()->Unit)=Button(this).apply{text=v;setTextColor(Color.WHITE);background=GradientDrawable().apply{setColor(Color.rgb(124,92,252));cornerRadius=dp(14).toFloat()};setOnClickListener{click()}}
  override fun onCreate(b:Bundle?){super.onCreate(b);createChannel();showHome()}
- private fun createChannel(){if(Build.VERSION.SDK_INT>=26){val c=NotificationChannel("tpaPcc","TPaPCC","TPaPCC services");getSystemService(NotificationManager::class.java).createNotificationChannel(c)}}
+ private fun createChannel(){if(Build.VERSION.SDK_INT>=26){val c=NotificationChannel("tpaPcc","TPaPCC services",NotificationManager.IMPORTANCE_LOW);getSystemService(NotificationManager::class.java).createNotificationChannel(c)}}
  private fun showHome(){
   val scroll=ScrollView(this);val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(22),dp(28),dp(22),dp(28));setBackgroundColor(Color.rgb(11,13,18))}
   root.addView(t("TPaPCC",32f,Color.WHITE,true));root.addView(t("Trusted Phone and PC Connect",14f,Color.rgb(169,173,186)));space(root,20)
