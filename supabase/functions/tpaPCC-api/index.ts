@@ -41,10 +41,18 @@ export default {fetch:withSupabase({auth:"none"},async(req,ctx)=>{
  if(action==="end_session"){const id=String(body.session_id||"");const {data:session}=await db.from("sessions").select("id,device_a,device_b,approved_at").eq("id",id).maybeSingle();if(!session||![session.device_a,session.device_b].includes(deviceId))return json({error:"Not authorized"},403);const {error}=await db.from("sessions").update({ended_at:new Date().toISOString()}).eq("id",id).is("ended_at",null);if(error)return json({error:error.message},400);await db.from("audit_events").insert({session_id:id,actor_device_id:deviceId,event_type:"session_ended",metadata:{approved:!!session.approved_at}});return json({ended:true});}
  if(action==="send_signal"){
   const sessionId=String(body.session_id||""),messageType=String(body.message_type||""),payload=body.payload;
-  const allowedTypes=new Set(["offer","answer","ice","bye","ping"]);
+  const allowedTypes=new Set(["offer","answer","ice","bye","ping","control"]);
   if(!sessionId||!allowedTypes.has(messageType)||payload===undefined)return json({error:"Invalid signal"},400);
   const {data:session}=await db.from("sessions").select("id,device_a,device_b,approved_at").eq("id",sessionId).is("ended_at",null).gt("expires_at",new Date().toISOString()).maybeSingle();
   if(!session||![session.device_a,session.device_b].includes(deviceId)||!session.approved_at)return json({error:"Session is not approved"},403);
+  if(messageType==="control"){
+   const command=String(payload?.command||"");
+   const required=new Map([["screenshot","screenshot"],["screen","screen"],["microphone","microphone"],["files","files"],["notifications","notifications"],["brightness","brightness"],["volume","volume"],["accessibility","accessibility"]]);
+   const permission=required.get(command);
+   if(!permission)return json({error:"Unknown control command"},400);
+   const {data:allowed}=await db.from("session_permissions").select("permission").eq("session_id",sessionId).eq("permission",permission).maybeSingle();
+   if(!allowed)return json({error:"Permission not granted for this command"},403);
+  }
   const {error}=await db.from("signaling_messages").insert({session_id:sessionId,sender_device_id:deviceId,message_type:messageType,payload});
   if(error)return json({error:error.message},400);
   return json({sent:true});
