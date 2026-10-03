@@ -13,8 +13,7 @@ body{font:16px system-ui;background:#0b0d12;color:#eee;margin:0}main{max-width:9
 <script>
 const API="https://xblfnpiarlhbntfkxwgq.supabase.co/functions/v1/tpaPCC-api";
 let token=localStorage.tpapccToken||"",deviceId=localStorage.tpapccDevice||"",phoneId=localStorage.tpapccPhone||"",sessionId="",pc=null,last=0,polling=false,remoteSet=false,pendingIce=[];
-const $=id=>document.getElementById(id), log=x=>{$("log").textContent=new Date().toLocaleTimeString()+" "+x+"
-"+$("log").textContent};
+const $=id=>document.getElementById(id), log=x=>{$("log").textContent=new Date().toLocaleTimeString()+" "+x+"\n"+$("log").textContent};
 function tok(){if(!token){const b=new Uint8Array(32);crypto.getRandomValues(b);token=[...b].map(x=>x.toString(16).padStart(2,"0")).join("");localStorage.tpapccToken=token}return token}
 async function api(action,body={}){const r=await fetch(API,{method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+tok()},body:JSON.stringify({action,...body})});const j=await r.json();if(!r.ok)throw Error(j.error||"API error");return j}
 async function register(){try{const j=await api("register_device",{device_token:tok(),name:$("name").value,platform:"windows"});deviceId=j.device_id;localStorage.tpapccDevice=deviceId;$("device").textContent="ID: "+deviceId;log("ПК зарегистрирован")}catch(e){log(e.message)}}
