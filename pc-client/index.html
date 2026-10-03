@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TPaPCC PC</title>
+<style>
+body{font:16px system-ui;background:#0b0d12;color:#eee;margin:0}main{max-width:900px;margin:auto;padding:28px}section{background:#151922;border-radius:18px;padding:20px;margin:14px 0}input,button{font:inherit;padding:12px;border-radius:10px;border:0;margin:5px}input{background:#1d2230;color:#fff}button{background:#7c5cfc;color:white;cursor:pointer}video{width:100%;background:#000;border-radius:14px;margin-top:12px}#log{white-space:pre-wrap;color:#a9adba}
+</style></head><body><main>
+<h1>TPaPCC PC</h1><p>Доверенный клиент. Сначала сопряжение, затем владелец телефона должен явно разрешить сессию.</p>
+<section><h2>1. Устройство ПК</h2><input id="name" value="TPaPCC PC"><button onclick="register()">Зарегистрировать ПК</button><div id="device"></div></section>
+<section><h2>2. Сопряжение</h2><input id="code" inputmode="numeric" maxlength="6" placeholder="Код телефона"><button onclick="pair()">Сопрячь</button><div id="pair"></div></section>
+<section><h2>3. Сессия</h2><select id="duration"><option value="15">15 минут</option><option value="30">30 минут</option><option value="60" selected>1 час</option><option value="180">3 часа</option><option value="360">6 часов</option><option value="1440">24 часа</option></select><button onclick="start()">Запросить подключение</button><button onclick="stop()">Остановить</button><div id="state">Нет сессии</div><video id="screen" autoplay playsinline></video></section>
+<section><h2>Журнал</h2><div id="log"></div></section>
+</main>
+<script>
+const API="https://xblfnpiarlhbntfkxwgq.supabase.co/functions/v1/tpaPCC-api";
+let token=localStorage.tpapccToken||"",deviceId=localStorage.tpapccDevice||"",phoneId=localStorage.tpapccPhone||"",sessionId="",pc=null,last=0,polling=false;
+const $=id=>document.getElementById(id), log=x=>{$("log").textContent=new Date().toLocaleTimeString()+" "+x+"\n"+$("log").textContent};
+function tok(){if(!token){const b=new Uint8Array(32);crypto.getRandomValues(b);token=[...b].map(x=>x.toString(16).padStart(2,"0")).join("");localStorage.tpapccToken=token}return token}
+async function api(action,body={}){const r=await fetch(API,{method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+tok()},body:JSON.stringify({action,...body})});const j=await r.json();if(!r.ok)throw Error(j.error||"API error");return j}
+async function register(){try{const j=await api("register_device",{device_token:tok(),name:$("name").value,platform:"windows"});deviceId=j.device_id;localStorage.tpapccDevice=deviceId;$("device").textContent="ID: "+deviceId;log("ПК зарегистрирован")}catch(e){log(e.message)}}
+async function pair(){try{const j=await api("redeem_code",{code:$("code").value});phoneId=j.device_id;localStorage.tpapccPhone=phoneId;$("pair").textContent="Телефон: "+phoneId;log("Сопряжение выполнено")}catch(e){log(e.message)}}
+async function start(){try{if(!phoneId)throw Error("Сначала сопряги телефон");const j=await api("start_session",{device_b:phoneId,duration_minutes:+$("duration").value,permissions:["screen"]});sessionId=j.session.id;$("state").textContent="Запрос отправлен. Ждём разрешения телефона…";log("Сессия ожидает подтверждения владельца");polling=true;poll()}catch(e){log(e.message)}}
+async function stop(){if(sessionId)try{await api("end_session",{session_id:sessionId})}catch(e){log(e.message)}closePc();sessionId="";$("state").textContent="Остановлено"}
+function closePc(){if(pc){pc.close();pc=null}}
+async function poll(){if(!polling||!sessionId)return;try{const j=await api("poll_signals",{session_id:sessionId,after_id:last});for(const m of j.messages||[]){last=Math.max(last,+m.id);if(m.message_type==="offer")await answer(m.payload);if(m.message_type==="ice"&&pc)await pc.addIceCandidate(m.payload);if(m.message_type==="bye")stop()}const s=await api("session_status");if(!s.session){polling=false;$("state").textContent="Сессия завершена";closePc()}else if(s.session.approved_at&&!pc){$("state").textContent="Телефон разрешил подключение";} }catch(e){log(e.message)}setTimeout(poll,700)}
+async function answer(offer){closePc();pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});pc.ontrack=e=>{$("screen").srcObject=e.streams[0]};pc.onicecandidate=e=>{if(e.candidate)api("send_signal",{session_id:sessionId,message_type:"ice",payload:e.candidate.toJSON()}).catch(x=>log(x.message))};await pc.setRemoteDescription(offer);const a=await pc.createAnswer();await pc.setLocalDescription(a);await api("send_signal",{session_id:sessionId,message_type:"answer",payload:{type:a.type,sdp:a.sdp}});$("state").textContent="🟢 Экран подключён";log("WebRTC соединение установлено")}
+if(!deviceId)register().catch(()=>{});else $("device").textContent="ID: "+deviceId;
+</script></body></html>
