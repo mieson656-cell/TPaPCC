@@ -177,7 +177,7 @@ class WebRtcSession(
                             onControl(p)
                         }
 
-                        "bye" -> stop()
+                        "bye" -> stop(false)
                     }
                 }
             }
@@ -198,10 +198,10 @@ class WebRtcSession(
         }
     }
 
-    fun stop() {
+    fun stop(sendBye: Boolean = true) {
         if (!running) return
         running = false
-        try { TpaPccApi.sendSignal(context, sessionId, "bye", JSONObject().put("reason", "stopped")) { _, _ -> } } catch (_: Exception) {}
+        if (sendBye) try { TpaPccApi.sendSignal(context, sessionId, "bye", JSONObject().put("reason", "stopped")) { _, _ -> } } catch (_: Exception) {}
         try { capturer?.stopCapture() } catch (_: Exception) {}
         capturer?.dispose()
         capturer = null
