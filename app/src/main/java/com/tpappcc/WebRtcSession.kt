@@ -171,7 +171,7 @@ class WebRtcSession(
                             }
                         }
 
-                        "bye" -> stop()
+                        "control" -> {\n                            val p = m.optJSONObject("payload") ?: continue\n                            onControl(p)\n                        }\n\n                        "bye" -> stop()
                     }
                 }
             }
