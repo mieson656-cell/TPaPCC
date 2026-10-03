@@ -180,7 +180,8 @@ class MainActivity : Activity() {
     }
 
     private fun showRolePicker() {
-        val root = baseScroll()
+        val scroll = baseScroll()
+        val root = scroll.getChildAt(0) as LinearLayout
         root.addView(text("Кто ты будешь сегодня?", 28f, Color.WHITE, true))
         gap(root, 9)
         root.addView(text("Выбери режим — его можно сменить позже.", 15f, muted))
@@ -196,7 +197,7 @@ class MainActivity : Activity() {
             showMain("Подключение к другу")
         }
         root.addView(hostTelegram); gap(root, 12); root.addView(host); gap(root, 12); root.addView(friend)
-        setContentView(root)
+        setContentView(scroll)
         animateIn(root.getChildAt(0)); animateIn(hostTelegram, 70); animateIn(host, 130); animateIn(friend, 190)
     }
 
@@ -338,8 +339,8 @@ class MainActivity : Activity() {
             .setPositiveButton("Разрешить экран") { _, _ ->
                 activeSessionId = sessionId
                 TpaPccApi.approveSession(this, sessionId) { ok, _ ->
-                    if (ok) { status.text = "● Подключение разрешено"; requestScreen() }
-                    else status.text = "● Не удалось разрешить сессию"
+                    if (ok) { if (::status.isInitialized) status.text = "● Подключение разрешено"; beep(true); requestScreen() }
+                    else if (::status.isInitialized) status.text = "● Не удалось разрешить сессию"
                 }
             }.setCancelable(false).show()
     }
