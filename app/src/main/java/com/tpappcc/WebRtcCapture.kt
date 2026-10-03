@@ -14,21 +14,23 @@ class WebRtcCapture(private val context: Context) {
     private var capturer: ScreenCapturerAndroid? = null
     private var videoSource: VideoSource? = null
     private var videoTrack: VideoTrack? = null
+    private var egl: EglBase? = null
+    private var surfaceHelper: SurfaceTextureHelper? = null
 
     fun startScreen(resultCode: Int, data: Intent): VideoTrack {
         stop()
-        PeerConnectionFactory.initialize(
-            PeerConnectionFactory.InitializationOptions.builder(context).createInitializationOptions()
-        )
+        ensureWebRtcInitialized(context)
         factory = PeerConnectionFactory.builder().createPeerConnectionFactory()
+        egl = EglBase.create()
         capturer = ScreenCapturerAndroid(data, object : MediaProjection.Callback() {
             override fun onStop() {
                 stop()
             }
         })
         videoSource = factory!!.createVideoSource(false)
+        surfaceHelper = SurfaceTextureHelper.create("TPaPCC-Capture", egl!!.eglBaseContext)
         capturer!!.initialize(
-            SurfaceTextureHelper.create("TPaPCC-Capture", EglBase.create().eglBaseContext),
+            surfaceHelper,
             context,
             videoSource!!.capturerObserver
         )
@@ -45,7 +47,24 @@ class WebRtcCapture(private val context: Context) {
         videoTrack = null
         videoSource?.dispose()
         videoSource = null
+        surfaceHelper?.dispose()
+        surfaceHelper = null
+        egl?.release()
+        egl = null
         factory?.dispose()
         factory = null
+    }
+
+    private companion object {
+        @Volatile private var webRtcInitialized = false
+
+        @Synchronized
+        private fun ensureWebRtcInitialized(context: Context) {
+            if (webRtcInitialized) return
+            PeerConnectionFactory.initialize(
+                PeerConnectionFactory.InitializationOptions.builder(context).createInitializationOptions()
+            )
+            webRtcInitialized = true
+        }
     }
 }
