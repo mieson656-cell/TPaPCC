@@ -23,6 +23,8 @@ class WebRtcSession(
     private var lastSignalId = 0L
     private val handler = Handler(Looper.getMainLooper())
     private var running = false
+    private var remoteDescriptionSet = false
+    private val pendingIce = mutableListOf<IceCandidate>()
 
     fun startScreen(data: Intent) {
         if (running) return
@@ -99,14 +101,14 @@ class WebRtcSession(
                             val p = m.optJSONObject("payload") ?: continue
                             val type = SessionDescription.Type.fromCanonicalForm(p.optString("type", "answer"))
                             val sdp = p.optString("sdp")
-                            if (sdp.isNotBlank()) peer?.setRemoteDescription(sdpObserver, SessionDescription(type, sdp))
+                            if (sdp.isNotBlank()) {\n                                peer?.setRemoteDescription(object : SdpObserver {\n                                    override fun onSetSuccess() {\n                                        remoteDescriptionSet = true\n                                        val queued = pendingIce.toList(); pendingIce.clear()\n                                        queued.forEach { peer?.addIceCandidate(it) }\n                                    }\n                                    override fun onSetFailure(error: String) { onStatus("WebRTC remote SDP: $error") }\n                                    override fun onCreateSuccess(desc: SessionDescription) {}\n                                    override fun onCreateFailure(error: String) {}\n                                }, SessionDescription(type, sdp))\n                            }
                         }
                         "ice" -> {
                             val p = m.optJSONObject("payload") ?: continue
                             val mid = if (p.isNull("sdpMid")) null else p.optString("sdpMid")
                             val idx = p.optInt("sdpMLineIndex", 0)
                             val candidate = p.optString("candidate")
-                            if (candidate.isNotBlank()) peer?.addIceCandidate(IceCandidate(mid, idx, candidate))
+                            if (candidate.isNotBlank()) {\n                                val ice = IceCandidate(mid, idx, candidate)\n                                if (remoteDescriptionSet) peer?.addIceCandidate(ice) else pendingIce.add(ice)\n                            }
                         }
                         "bye" -> stop()
                     }
