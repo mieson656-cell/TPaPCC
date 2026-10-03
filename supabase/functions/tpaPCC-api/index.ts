@@ -38,7 +38,7 @@ export default {fetch:withSupabase({auth:"none"},async(req,ctx)=>{
   await notifyTelegram(db,[session.device_a,session.device_b],"🟢 TPaPCC: подключение разрешено владельцем телефона. Сессия "+id+" активна.");
   return json({approved:true,session:updated});
  }
- if(action==="end_session"){const id=String(body.session_id||"");const {data:session}=await db.from("sessions").select("id,device_a,device_b").eq("id",id).maybeSingle();if(!session||![session.device_a,session.device_b].includes(deviceId)||!session.approved_at)return json({error:"Session is not approved"},403);const {error}=await db.from("sessions").update({ended_at:new Date().toISOString()}).eq("id",id).is("ended_at",null);if(error)return json({error:error.message},400);await db.from("audit_events").insert({session_id:id,actor_device_id:deviceId,event_type:"session_ended",metadata:{}});return json({ended:true});}
+ if(action==="end_session"){const id=String(body.session_id||"");const {data:session}=await db.from("sessions").select("id,device_a,device_b,approved_at").eq("id",id).maybeSingle();if(!session||![session.device_a,session.device_b].includes(deviceId))return json({error:"Not authorized"},403);const {error}=await db.from("sessions").update({ended_at:new Date().toISOString()}).eq("id",id).is("ended_at",null);if(error)return json({error:error.message},400);await db.from("audit_events").insert({session_id:id,actor_device_id:deviceId,event_type:"session_ended",metadata:{approved:!!session.approved_at}});return json({ended:true});}
  if(action==="send_signal"){
   const sessionId=String(body.session_id||""),messageType=String(body.message_type||""),payload=body.payload;
   const allowedTypes=new Set(["offer","answer","ice","bye","ping"]);
@@ -57,6 +57,6 @@ export default {fetch:withSupabase({auth:"none"},async(req,ctx)=>{
   if(error)return json({error:error.message},400);
   return json({messages:data||[]});
  }
- if(action==="session_status"){const {data}=await db.from("sessions").select("id,device_a,device_b,started_at,expires_at,ended_at,requested_at,approved_at,approved_by").or("device_a.eq."+deviceId+",device_b.eq."+deviceId).is("ended_at",null).gt("expires_at",new Date().toISOString()).order("started_at",{ascending:false}).limit(1).maybeSingle();return json({session:data||null});}
+ if(action==="session_status"){const {data}=await db.from("sessions").select("id,device_a,device_b,started_at,expires_at,ended_at,requested_at,approved_at,approved_by").or("device_a.eq."+deviceId+",device_b.eq."+deviceId).is("ended_at",null).gt("expires_at",new Date().toISOString()).order("started_at",{ascending:false}).limit(1).maybeSingle();if(!data)return json({session:null,permissions:[]});const {data:perms}=await db.from("session_permissions").select("permission").eq("session_id",data.id);return json({session:data,permissions:(perms||[]).map((p:any)=>p.permission)});}
  return json({error:"Unknown action"},400);
 })};
