@@ -49,7 +49,7 @@ object TpaPccApi {
         post(context, "send_signal", JSONObject().put("session_id", sessionId).put("message_type", type).put("payload", payload), callback)
 
     fun pollSignals(context: Context, sessionId: String, afterId: Long, callback: (Boolean, JSONArray?) -> Unit) =
-        post(context, "poll_signals", JSONObject().put("session_id", sessionId).put("after_id", afterId), callback) { ok, text ->
+        post(context, "poll_signals", JSONObject().put("session_id", sessionId).put("after_id", afterId)) { ok, text ->
             callback(ok, try { if (ok) JSONObject(text ?: "").optJSONArray("messages") else null } catch (_: Exception) { null })
         }
 
