@@ -30,7 +30,7 @@ object TpaPccApi {
 
     fun createCode(context: Context, callback: (Boolean, String?) -> Unit) =
         post(context, "create_code", JSONObject(), callback)
-
+\n    fun telegramBotUrl(context: Context, callback: (Boolean, String?) -> Unit) =\n        post(context, "telegram_bot_url", JSONObject(), callback)\n
     fun redeemCode(context: Context, code: String, callback: (Boolean, String?) -> Unit) =
         post(context, "redeem_code", JSONObject().put("code", code), callback)
 
