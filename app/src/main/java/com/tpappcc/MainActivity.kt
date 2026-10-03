@@ -31,6 +31,8 @@ class MainActivity : Activity() {
     private lateinit var timerView: TextView
     private lateinit var duration: Spinner
     private var tone: ToneGenerator? = null
+    private var connectedSessionPanel: View? = null
+    private var connectedActionsPanel: View? = null
 
     private val bg = Color.rgb(9, 11, 16)
     private val cardBg = Color.rgb(20, 24, 34)
@@ -139,6 +141,7 @@ class MainActivity : Activity() {
                                 buildSet { for (i in 0 until a.length()) add(a.optString(i)) }
                             } ?: emptySet()
                             if (::status.isInitialized) { status.text = "● Удалённая сессия разрешена"; beep(true) }
+                            connectedSessionPanel?.let { sessionView -> connectedActionsPanel?.let { actionsView -> revealConnectedControls(sessionView, actionsView) } }
                         }
                     }
                 }
@@ -325,6 +328,7 @@ class MainActivity : Activity() {
             gap(session, 8)
             session.addView(button("■ Завершить доступ") { stopSession() }, LinearLayout.LayoutParams(-1, dp(52)))
             session.visibility = View.GONE
+            connectedSessionPanel = session
             root.addView(session); gap(root, 14)
 
             val actions = card()
@@ -343,6 +347,7 @@ class MainActivity : Activity() {
                 if (index != actionList.lastIndex) gap(actions, 7)
             }
             actions.visibility = View.GONE
+            connectedActionsPanel = actions
             root.addView(actions); gap(root, 14)
 
             val caps = card()
