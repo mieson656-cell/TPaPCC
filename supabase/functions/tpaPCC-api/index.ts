@@ -21,6 +21,17 @@ export default {fetch:withSupabase({auth:"none"},async(req,ctx)=>{
   const {error:te}=await db.from("device_auth_tokens").insert({device_id:device.id,token_hash:hash}); if(te){await db.from("devices").delete().eq("id",device.id);return json({error:te.message},400);}
   return json({device_id:device.id});
  }
+ if(action==="telegram_bot_url"){
+  const t=Deno.env.get("TELEGRAM_BOT_TOKEN")||"";
+  if(!t)return json({error:"Telegram bot is not configured"},503);
+  try{
+   const r=await fetch(`https://api.telegram.org/bot${t}/getMe`);
+   const data=await r.json();
+   const username=String(data?.result?.username||"").trim();
+   if(!data?.ok||!username)return json({error:"Telegram bot username unavailable"},503);
+   return json({url:`https://t.me/${username}`});
+  }catch(_){return json({error:"Telegram bot lookup failed"},503);}
+ }
  const token=tokenFrom(req);if(!/^[0-9a-f]{64}$/.test(token))return json({error:"Device token required"},401);const hash=await hashToken(token);
  const {data:auth}=await db.from("device_auth_tokens").select("device_id").eq("token_hash",hash).maybeSingle();if(!auth?.device_id)return json({error:"Unknown device token"},401);
  const deviceId=auth.device_id;await db.from("device_auth_tokens").update({last_seen_at:new Date().toISOString()}).eq("device_id",deviceId);await db.from("devices").update({last_seen_at:new Date().toISOString()}).eq("id",deviceId);
