@@ -31,9 +31,7 @@ class WebRtcSession(
         running = true
         onStatus("Создание WebRTC-сессии…")
 
-        PeerConnectionFactory.initialize(
-            PeerConnectionFactory.InitializationOptions.builder(context).createInitializationOptions()
-        )
+        ensureWebRtcInitialized(context)
         factory = PeerConnectionFactory.builder().createPeerConnectionFactory()
         egl = EglBase.create()
 
@@ -178,6 +176,19 @@ class WebRtcSession(
                 }
             }
             if (running) handler.postDelayed({ poll() }, 700)
+        }
+    }
+
+    private companion object {
+        @Volatile private var webRtcInitialized = false
+
+        @Synchronized
+        private fun ensureWebRtcInitialized(context: Context) {
+            if (webRtcInitialized) return
+            PeerConnectionFactory.initialize(
+                PeerConnectionFactory.InitializationOptions.builder(context).createInitializationOptions()
+            )
+            webRtcInitialized = true
         }
     }
 
