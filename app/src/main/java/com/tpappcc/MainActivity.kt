@@ -15,6 +15,9 @@ import android.graphics.drawable.GradientDrawable
 
 class MainActivity:Activity(){
  private var timer:CountDownTimer?=null
+ private val sessionHandler=Handler(Looper.getMainLooper())
+ private var sessionPolling=false
+ private var lastPromptSession=""
  private lateinit var status:TextView
  private lateinit var timerView:TextView
  private lateinit var duration:Spinner
@@ -24,6 +27,12 @@ class MainActivity:Activity(){
  private fun card()=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(20),dp(18),dp(20),dp(18));background=GradientDrawable().apply{setColor(Color.rgb(21,25,34));cornerRadius=dp(22).toFloat()}}
  private fun btn(v:String,click:()->Unit)=Button(this).apply{text=v;setTextColor(Color.WHITE);background=GradientDrawable().apply{setColor(Color.rgb(124,92,252));cornerRadius=dp(14).toFloat()};setOnClickListener{click()}}
  override fun onCreate(b:Bundle?){super.onCreate(b);createChannel();showHome();TpaPccApi.register(this,"Мой Android"){ok,_ -> if(ok) status.text="● Устройство подключено к TPaPCC" else status.text="● Ожидаем сеть"}}
+ override fun onResume(){super.onResume();startSessionPolling()}
+ override fun onPause(){super.onPause();stopSessionPolling()}
+ private fun startSessionPolling(){if(sessionPolling)return;sessionPolling=true;sessionHandler.post(sessionPoll)}
+ private fun stopSessionPolling(){sessionPolling=false;sessionHandler.removeCallbacks(sessionPoll)}
+ private val sessionPoll=object:Runnable{override fun run(){if(!sessionPolling)return;TpaPccApi.sessionStatus(this@MainActivity){ok,obj->if(ok&&obj!=null){val s=obj.optJSONObject("session");if(s!=null){val id=s.optString("id");val approved=!s.isNull("approved_at");if(!approved&&id.isNotBlank()&&id!=lastPromptSession){lastPromptSession=id;showApprovalDialog(id)};if(approved)status.text="● Удалённая сессия разрешена"}}};sessionHandler.postDelayed(this,2000)}}
+ private fun showApprovalDialog(sessionId:String){AlertDialog.Builder(this).setTitle("Запрос на подключение").setMessage("Доверенное устройство хочет подключиться.\n\nНажми «Разрешить», только если ты действительно ожидаешь это подключение.").setNegativeButton("Отклонить"){_,_->TpaPccApi.endSession(this,sessionId){_,_->}}.setPositiveButton("Разрешить экран"){_,_->TpaPccApi.approveSession(this,sessionId){ok,_->if(ok)requestScreen()else status.text="● Не удалось разрешить сессию"}}.setCancelable(false).show()}
  private fun createChannel(){if(Build.VERSION.SDK_INT>=26){val c=NotificationChannel("tpaPcc","TPaPCC services",NotificationManager.IMPORTANCE_LOW);getSystemService(NotificationManager::class.java).createNotificationChannel(c)}}
  private fun showHome(){
   val scroll=ScrollView(this);val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(22),dp(28),dp(22),dp(28));setBackgroundColor(Color.rgb(11,13,18))}
