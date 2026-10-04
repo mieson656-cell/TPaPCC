@@ -23,11 +23,21 @@ class ScreenCaptureService : Service() {
 
             // MainActivity waits for this callback before ScreenCapturerAndroid
             // consumes the MediaProjection consent token.
-            i?.getParcelableExtra<ResultReceiver>("ready")?.send(1, Bundle())
+            val ready = if (Build.VERSION.SDK_INT >= 33) {
+                i?.getParcelableExtra("ready", ResultReceiver::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                i?.getParcelableExtra("ready")
+            }
+            ready?.send(1, Bundle())
         } catch (e: Exception) {
-            i?.getParcelableExtra<ResultReceiver>("ready")?.send(0, Bundle().apply {
-                putString("error", e.message)
-            })
+            val ready = if (Build.VERSION.SDK_INT >= 33) {
+                i?.getParcelableExtra("ready", ResultReceiver::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                i?.getParcelableExtra("ready")
+            }
+            ready?.send(0, Bundle().apply { putString("error", e.message) })
         }
         return START_NOT_STICKY
     }
