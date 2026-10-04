@@ -192,7 +192,7 @@ class MainActivity : Activity() {
 
         val title = root.getChildAt(0) as TextView
         title.gravity = Gravity.CENTER
-        val subtitle = root.getChildAt(1) as TextView
+        val subtitle = root.getChildAt(2) as TextView
         subtitle.gravity = Gravity.CENTER
 
         val host = roleCard("📱", "Просто Хост", "Создай код и принимай подключения") {
