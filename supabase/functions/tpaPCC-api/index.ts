@@ -25,12 +25,29 @@ export default {fetch:withSupabase({auth:"none"},async(req,ctx)=>{
   const t=Deno.env.get("TELEGRAM_BOT_TOKEN")||"";
   if(!t)return json({error:"Telegram bot is not configured"},503);
   try{
-   const r=await fetch(`https://api.telegram.org/bot${t}/getMe`);
-   const data=await r.json();
+   const botApi=`https://api.telegram.org/bot${t}`;
+   const me=await fetch(botApi+"/getMe");
+   const data=await me.json();
    const username=String(data?.result?.username||"").trim();
    if(!data?.ok||!username)return json({error:"Telegram bot username unavailable"},503);
-   return json({url:`https://t.me/${username}`});
-  }catch(_){return json({error:"Telegram bot lookup failed"},503);}
+   const webhookUrl="https://xblfnpiarlhbntfkxwgq.supabase.co/functions/v1/tpaPCC-telegram";
+   const webhookBody:any={url:webhookUrl,drop_pending_updates:false};
+   const webhookSecret=Deno.env.get("TELEGRAM_WEBHOOK_SECRET")||"";
+   if(webhookSecret)webhookBody.secret_token=webhookSecret;
+   const wh=await fetch(botApi+"/setWebhook",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(webhookBody)});
+   const whData=await wh.json();
+   if(!whData?.ok)return json({error:"Telegram webhook setup failed",details:String(whData?.description||"unknown error")},503);
+   const commands=[
+    {command:"start",description:"Открыть меню TPaPCC"},
+    {command:"devices",description:"Показать доверенные устройства"},
+    {command:"session",description:"Запросить сессию"},
+    {command:"help",description:"Помощь"},
+    {command:"id",description:"Показать Telegram ID"},
+    {command:"privacy",description:"Приватность"}
+   ];
+   await fetch(botApi+"/setMyCommands",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({commands})});
+   return json({url:`https://t.me/${username}`,webhook_configured:true});
+  }catch(_){return json({error:"Telegram bot configuration failed"},503);}
  }
  const token=tokenFrom(req);if(!/^[0-9a-f]{64}$/.test(token))return json({error:"Device token required"},401);const hash=await hashToken(token);
  const {data:auth}=await db.from("device_auth_tokens").select("device_id").eq("token_hash",hash).maybeSingle();if(!auth?.device_id)return json({error:"Unknown device token"},401);
