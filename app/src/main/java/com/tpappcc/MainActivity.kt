@@ -190,9 +190,11 @@ class MainActivity : Activity() {
         root.addView(text("Выбери режим — его можно сменить позже.", 15f, muted))
         gap(root, 24)
 
-        val hostTelegram = roleCard("🤖", "Хост через Telegram-бот", "Управление запросами через Telegram") {
-            showMain("Хост через Telegram")
-        }
+        val title = root.getChildAt(0) as TextView
+        title.gravity = Gravity.CENTER
+        val subtitle = root.getChildAt(1) as TextView
+        subtitle.gravity = Gravity.CENTER
+
         val host = roleCard("📱", "Просто Хост", "Создай код и принимай подключения") {
             showMain("Просто Хост")
         }
@@ -208,6 +210,9 @@ class MainActivity : Activity() {
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+            }
             setPadding(dp(18), dp(18), dp(18), dp(18))
             background = rounded(cardBg, 20)
             isClickable = true
@@ -426,6 +431,15 @@ class MainActivity : Activity() {
         val m = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         startActivityForResult(m.createScreenCaptureIntent(), 20)
     }
+
+    private fun startScreenCaptureForegroundService() {
+        val i = Intent(this, ScreenCaptureService::class.java)
+        try {
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(i) else startService(i)
+        } catch (e: Exception) {
+            if (::status.isInitialized) status.text = "● Не удалось запустить системный сервис экрана"
+        }
+    }
     private fun pickFile() {
         startActivity(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { type = "*/*"; addCategory(Intent.CATEGORY_OPENABLE) })
     }
@@ -433,6 +447,7 @@ class MainActivity : Activity() {
         super.onActivityResult(req, res, data)
         if (req == 20 && res == RESULT_OK && data != null) {
             status.text = "● Трансляция экрана активна"
+            startScreenCaptureForegroundService()
             if (activeSessionId.isNotBlank()) {
                 webRtcSession?.stop()
                 webRtcSession = WebRtcSession(this, activeSessionId, { s -> status.text = "● $s" }, { control -> handleRemoteControl(control) })
