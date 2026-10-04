@@ -203,6 +203,7 @@ class WebRtcSession(
         running = false
         if (sendBye) try { TpaPccApi.sendSignal(context, sessionId, "bye", JSONObject().put("reason", "stopped")) { _, _ -> } } catch (_: Exception) {}
         try { capturer?.stopCapture() } catch (_: Exception) {}
+        try { context.stopService(Intent(context, ScreenCaptureService::class.java)) } catch (_: Exception) {}
         capturer?.dispose()
         capturer = null
         surfaceHelper?.dispose()
