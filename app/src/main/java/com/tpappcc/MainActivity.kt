@@ -199,9 +199,9 @@ class MainActivity : Activity() {
         val friend = roleCard("🔗", "Подключение к другу", "Введи код, который дал друг") {
             showMain("Подключение к другу")
         }
-        root.addView(hostTelegram); gap(root, 12); root.addView(host); gap(root, 12); root.addView(friend)
+        root.addView(host); gap(root, 12); root.addView(friend)
         setContentView(scroll)
-        animateIn(root.getChildAt(0)); animateIn(hostTelegram, 70); animateIn(host, 130); animateIn(friend, 190)
+        animateIn(root.getChildAt(0)); animateIn(host, 70); animateIn(friend, 130)
     }
 
     private fun roleCard(icon: String, title: String, desc: String, click: () -> Unit) =
@@ -225,7 +225,7 @@ class MainActivity : Activity() {
         setBackgroundColor(bg)
         addView(LinearLayout(this@MainActivity).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(28), dp(22), dp(32))
+            setPadding(dp(22), dp(44), dp(22), dp(40))
         })
     }
 
@@ -233,7 +233,6 @@ class MainActivity : Activity() {
         val scroll = baseScroll()
         val root = scroll.getChildAt(0) as LinearLayout
         val isFriend = role == "Подключение к другу"
-        val isTelegramHost = role == "Хост через Telegram"
 
         val header = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         header.addView(text("TPaPCC", 32f, Color.WHITE, true))
@@ -250,16 +249,7 @@ class MainActivity : Activity() {
         hero.addView(status)
         root.addView(hero); gap(root, 14)
 
-        if (isTelegramHost) {
-            val telegram = card()
-            telegram.addView(text("Хост через Telegram", 18f, Color.WHITE, true))
-            gap(telegram, 8)
-            telegram.addView(text("Открывает официальный Telegram-бот TPaPCC. Меню приложения здесь не используется.", 14f, muted))
-            gap(telegram, 12)
-            telegram.addView(button("🤖 Открыть Telegram-бота") { openTelegramBot() },
-                LinearLayout.LayoutParams(-1, dp(52)))
-            root.addView(telegram); gap(root, 14)
-        } else {
+        run {
             val pair = card()
             pair.addView(text(if (isFriend) "Подключение к другу" else "Создание подключения", 18f, Color.WHITE, true))
             gap(pair, 8)
@@ -313,6 +303,19 @@ class MainActivity : Activity() {
             }
 
             root.addView(pair); gap(root, 14)
+
+            val test = card()
+            test.addView(text("Проверка приложения", 18f, Color.WHITE, true))
+            gap(test, 7)
+            test.addView(text("Если под рукой только один телефон, можно проверить сервер, запрос сессии и подтверждение без второго устройства.", 14f, muted))
+            gap(test, 10)
+            test.addView(button("🧪 Тест на этом телефоне") {
+                TpaPccApi.selfTestSession(this) { ok, result ->
+                    if (ok) status.text = "● Тестовая сессия создана — подтверди запрос"
+                    else status.text = "● Ошибка тестовой сессии: ${result ?: "unknown"}"
+                }
+            }, LinearLayout.LayoutParams(-1, dp(52)))
+            root.addView(test); gap(root, 14)
 
             val session = card()
             session.addView(text("Сессия", 18f, Color.WHITE, true)); gap(session, 5)
@@ -378,7 +381,7 @@ class MainActivity : Activity() {
         setContentView(scroll)
         animateIn(header)
         animateIn(hero, 70)
-        if (!isTelegramHost) animateIn(root.getChildAt(2), 130)
+        animateIn(root.getChildAt(2), 130)
     }
 
     private fun revealConnectedControls(session: View, actions: View) {
@@ -391,17 +394,6 @@ class MainActivity : Activity() {
         actions.translationY = dp(24).toFloat()
         session.animate().alpha(1f).translationY(0f).setDuration(420).setInterpolator(DecelerateInterpolator()).start()
         actions.animate().alpha(1f).translationY(0f).setStartDelay(90).setDuration(420).setInterpolator(DecelerateInterpolator()).start()
-    }
-
-    private fun openTelegramBot() {
-        TpaPccApi.telegramBotUrl(this) { ok, url ->
-            if (ok && !url.isNullOrBlank()) {
-                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-            } else {
-                status.text = "● Не удалось открыть Telegram-бота"
-                Toast.makeText(this, "Бот ещё не настроен", Toast.LENGTH_SHORT).show()
-            }
-        }
     }
 
     private fun showApprovalDialog(sessionId: String) {
