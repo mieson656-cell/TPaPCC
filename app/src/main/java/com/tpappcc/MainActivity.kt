@@ -341,15 +341,27 @@ class MainActivity : Activity() {
 
             val actions = card()
             actions.addView(text("Функции и разрешения", 18f, Color.WHITE, true)); gap(actions, 9)
-            val actionList = listOf(
-                "🎙 Микрофон" to { requestMic() },
-                "🔔 Уведомления" to { requestNotifications() },
-                "📺 Доступ к экрану" to { requestScreen() },
-                "📸 Скриншот / системный выбор" to { pickFile() },
-                "🖐 Accessibility" to { requestAccessibility() },
-                "☀️ Яркость" to { startActivity(Intent(Settings.ACTION_DISPLAY_SETTINGS)) },
-                "🔊 Громкость" to { startActivity(Intent(Settings.ACTION_SOUND_SETTINGS)) }
-            )
+            val actionList = if (isFriend) {
+                listOf(
+                    "🎙 Микрофон" to { sendRemoteControl("microphone") },
+                    "🔔 Уведомления" to { sendRemoteControl("notifications") },
+                    "📺 Доступ к экрану" to { sendRemoteControl("screen") },
+                    "📸 Скриншот" to { sendRemoteControl("screenshot") },
+                    "🖐 Accessibility" to { sendRemoteControl("accessibility") },
+                    "☀️ Яркость" to { sendRemoteControl("brightness") },
+                    "🔊 Громкость" to { sendRemoteControl("volume") }
+                )
+            } else {
+                listOf(
+                    "🎙 Микрофон" to { requestMic() },
+                    "🔔 Уведомления" to { requestNotifications() },
+                    "📺 Доступ к экрану" to { requestScreen() },
+                    "📸 Скриншот" to { requestScreen() },
+                    "🖐 Accessibility" to { requestAccessibility() },
+                    "☀️ Яркость" to { adjustLocalBrightness() },
+                    "🔊 Громкость" to { adjustLocalVolume() }
+                )
+            }
             actionList.forEachIndexed { index, pairAction ->
                 actions.addView(button(pairAction.first, pairAction.second), LinearLayout.LayoutParams(-1, dp(50)))
                 if (index != actionList.lastIndex) gap(actions, 7)
@@ -432,12 +444,19 @@ class MainActivity : Activity() {
         startActivityForResult(m.createScreenCaptureIntent(), 20)
     }
 
-    private fun startScreenCaptureForegroundService() {
+    private fun startScreenCaptureForegroundService(onReady: () -> Unit) {
         val i = Intent(this, ScreenCaptureService::class.java)
+        val receiver = object : ResultReceiver(Handler(Looper.getMainLooper())) {
+            override fun onReceiveResult(resultCode: Int, resultData: Bundle?) {
+                if (resultCode == 1) onReady()
+                else if (::status.isInitialized) status.text = "● Сервис трансляции экрана не запустился"
+            }
+        }
+        i.putExtra("ready", receiver)
         try {
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(i) else startService(i)
         } catch (e: Exception) {
-            if (::status.isInitialized) status.text = "● Не удалось запустить системный сервис экрана"
+            if (::status.isInitialized) status.text = "● Не удалось запустить сервис экрана: " + (e.message ?: "ошибка")
         }
     }
     private fun pickFile() {
@@ -445,16 +464,30 @@ class MainActivity : Activity() {
     }
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {
         super.onActivityResult(req, res, data)
-        if (req == 20 && res == RESULT_OK && data != null) {
-            status.text = "● Трансляция экрана активна"
-            startScreenCaptureForegroundService()
-            if (activeSessionId.isNotBlank()) {
-                webRtcSession?.stop()
-                webRtcSession = WebRtcSession(this, activeSessionId, { s -> status.text = "● $s" }, { control -> handleRemoteControl(control) })
-                webRtcSession!!.startScreen(data)
-            } else {
-                val i = Intent(this, ScreenCaptureService::class.java).putExtra("resultCode", res).putExtra("data", data)
-                if (Build.VERSION.SDK_INT >= 26) startForegroundService(i) else startService(i)
+        if (req == 20) {
+            if (res != RESULT_OK || data == null) {
+                if (::status.isInitialized) status.text = "● Доступ к экрану не разрешён"
+                return
+            }
+            status.text = "● Запускаем трансляцию экрана…"
+            val captureData = data
+            startScreenCaptureForegroundService {
+                try {
+                    if (activeSessionId.isBlank()) {
+                        status.text = "● Экран разрешён, но активной удалённой сессии нет"
+                        return@startScreenCaptureForegroundService
+                    }
+                    webRtcSession?.stop()
+                    webRtcSession = WebRtcSession(
+                        this,
+                        activeSessionId,
+                        { s -> if (::status.isInitialized) status.text = "● " + s },
+                        { control -> handleRemoteControl(control) }
+                    )
+                    webRtcSession?.startScreen(captureData)
+                } catch (e: Exception) {
+                    if (::status.isInitialized) status.text = "● Не удалось запустить экран: " + (e.message ?: "ошибка")
+                }
             }
         }
     }
@@ -467,6 +500,37 @@ class MainActivity : Activity() {
             override fun onFinish() { timerView.text = "00:00:00"; status.text = "● Сессия завершена" }
         }.start()
     }
+    private fun sendRemoteControl(command: String) {
+        if (activeSessionId.isBlank()) {
+            if (::status.isInitialized) status.text = "● Нет активного подключения"
+            return
+        }
+        val payload = org.json.JSONObject().put("command", command)
+        TpaPccApi.sendSignal(this, activeSessionId, "control", payload) { ok, _ ->
+            if (::status.isInitialized) {
+                status.text = if (ok) "● Команда отправлена другу" else "● Не удалось отправить команду"
+            }
+        }
+    }
+
+    private fun adjustLocalBrightness() {
+        try {
+            val resolver = contentResolver
+            val value = android.provider.Settings.System.getInt(resolver, android.provider.Settings.System.SCREEN_BRIGHTNESS)
+            android.provider.Settings.System.putInt(resolver, android.provider.Settings.System.SCREEN_BRIGHTNESS, value)
+            if (::status.isInitialized) status.text = "● Яркость управляется системой"
+        } catch (_: Exception) {
+            if (::status.isInitialized) status.text = "● Для яркости нужен системный доступ"
+        }
+    }
+
+    private fun adjustLocalVolume() {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        val current = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+        am.setStreamVolume(AudioManager.STREAM_MUSIC, current, 0)
+        if (::status.isInitialized) status.text = "● Громкость управляется системой"
+    }
+
     private fun handleRemoteControl(control: org.json.JSONObject) {
         when (control.optString("command")) {
             "microphone" -> requestMic()
