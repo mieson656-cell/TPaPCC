@@ -31,9 +31,6 @@ object TpaPccApi {
     fun createCode(context: Context, callback: (Boolean, String?) -> Unit) =
         post(context, "create_code", JSONObject(), callback)
 
-    fun telegramBotUrl(context: Context, callback: (Boolean, String?) -> Unit) =
-        post(context, "telegram_bot_url", JSONObject(), callback)
-
     fun redeemCode(context: Context, code: String, callback: (Boolean, String?) -> Unit) =
         post(context, "redeem_code", JSONObject().put("code", code), callback)
 
@@ -44,6 +41,9 @@ object TpaPccApi {
 
     fun startSession(context: Context, remoteDeviceId: String, durationMinutes: Int, permissions: List<String>, callback: (Boolean, String?) -> Unit) =
         post(context, "start_session", JSONObject().put("device_b", remoteDeviceId).put("duration_minutes", durationMinutes).put("permissions", JSONArray(permissions)), callback)
+
+    fun selfTestSession(context: Context, callback: (Boolean, String?) -> Unit) =
+        post(context, "self_test_session", JSONObject(), callback)
 
     fun approveSession(context: Context, sessionId: String, callback: (Boolean, String?) -> Unit) =
         post(context, "approve_session", JSONObject().put("session_id", sessionId), callback)
